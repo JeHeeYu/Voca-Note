@@ -17,11 +17,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import com.example.vocanote.auth.AuthScreen
 import com.example.vocanote.features.add.presentation.AddWordPage
+import com.example.vocanote.features.profile.presentation.ProfilePage
 import com.example.vocanote.features.search.presentation.SearchPage
 import com.example.vocanote.features.words.presentation.WordListPage
 import com.example.vocanote.features.words.presentation.WordsPage
@@ -45,6 +47,7 @@ private sealed interface AppScreen {
     data object Words : AppScreen
     data object List : AppScreen
     data object Review : AppScreen
+    data object Profile : AppScreen
     data object AddWord : AppScreen
 }
 
@@ -115,6 +118,7 @@ fun VocaNoteApp() {
                             BottomNavDestination.Words -> AppScreen.Words
                             BottomNavDestination.List -> AppScreen.List
                             BottomNavDestination.Search -> AppScreen.Review
+                            BottomNavDestination.Profile -> AppScreen.Profile
                         }
                     }
                 )
@@ -142,6 +146,26 @@ fun VocaNoteApp() {
                 wordCount = words.size
             )
 
+            AppScreen.Profile -> ProfilePage(
+                modifier = Modifier.padding(innerPadding),
+                userName = auth.currentUser?.displayName ?: "내 계정",
+                userEmail = auth.currentUser?.email ?: "로그인된 계정",
+                onSignOut = {
+                    if (isSigningIn) return@ProfilePage
+                    isSigningIn = true
+                    scope.launch {
+                        signOut(
+                            credentialManager = credentialManager,
+                            auth = auth
+                        )
+                        selectedDestination = BottomNavDestination.Words
+                        currentScreen = AppScreen.Words
+                        isSignedIn = false
+                        isSigningIn = false
+                    }
+                }
+            )
+
             AppScreen.AddWord -> AddWordPage(
                 modifier = Modifier.padding(innerPadding),
                 onBack = { currentScreen = AppScreen.Words },
@@ -153,6 +177,17 @@ fun VocaNoteApp() {
                 }
             )
         }
+    }
+}
+
+private suspend fun signOut(
+    credentialManager: CredentialManager,
+    auth: FirebaseAuth
+) {
+    auth.signOut()
+    try {
+        credentialManager.clearCredentialState(ClearCredentialStateRequest())
+    } catch (_: Exception) {
     }
 }
 
