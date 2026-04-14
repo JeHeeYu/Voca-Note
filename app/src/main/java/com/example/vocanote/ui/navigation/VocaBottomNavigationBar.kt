@@ -2,6 +2,7 @@ package com.example.vocanote.ui.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.vocanote.ui.theme.BottomBarBackground
 import com.example.vocanote.ui.theme.BottomBarBorder
@@ -44,13 +46,15 @@ fun VocaBottomNavigationBar(
         NavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(83.dp),
+                .height(74.dp)
+                .background(BottomBarBackground),
             containerColor = BottomBarBackground,
             tonalElevation = 0.dp,
             windowInsets = WindowInsets(0, 0, 0, 0)
         ) {
             BottomNavDestination.entries.forEach { destination ->
                 NavigationBarItem(
+                    modifier = Modifier.fillMaxHeight(),
                     selected = selectedDestination == destination,
                     onClick = { onDestinationSelected(destination) },
                     icon = {
@@ -63,7 +67,7 @@ fun VocaBottomNavigationBar(
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = PrimaryBlue,
                         selectedTextColor = PrimaryBlue,
-                        indicatorColor = PrimaryBlue.copy(alpha = 0.14f),
+                        indicatorColor = PrimaryBlue.copy(alpha = 0.12f),
                         unselectedIconColor = BottomBarInactive,
                         unselectedTextColor = BottomBarInactive
                     )
