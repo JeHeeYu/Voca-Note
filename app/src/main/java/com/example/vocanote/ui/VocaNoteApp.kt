@@ -42,6 +42,8 @@ import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.tasks.await
+import java.time.LocalDate
+import java.time.ZoneId
 
 private sealed interface AppScreen {
     data object Words : AppScreen
@@ -73,6 +75,14 @@ fun VocaNoteApp() {
 
     val currentUser = auth.currentUser
     val userId = currentUser?.uid
+    val todayWordCount = remember(savedWords) {
+        val today = LocalDate.now()
+        savedWords.count { savedWord ->
+            savedWord.createdAt
+                ?.atZone(ZoneId.systemDefault())
+                ?.toLocalDate() == today
+        }
+    }
 
     DisposableEffect(userId, isSignedIn) {
         if (!isSignedIn || userId == null) {
@@ -144,6 +154,7 @@ fun VocaNoteApp() {
             AppScreen.Words -> WordsPage(
                 modifier = Modifier.padding(innerPadding),
                 words = savedWords.map { it.word to it.meaning },
+                todayWordCount = todayWordCount,
                 onAddWord = { currentScreen = AppScreen.AddWord },
                 onOpenReview = {
                     selectedDestination = BottomNavDestination.Search
@@ -198,7 +209,7 @@ fun VocaNoteApp() {
                 onBack = { currentScreen = AppScreen.Words },
                 isSaving = isSavingWord,
                 helperMessage = wordsErrorMessage,
-                onSave = { word, meaning ->
+                onSave = { word, meaning, note ->
                     if (userId == null || isSavingWord) return@AddWordPage
                     isSavingWord = true
                     wordsErrorMessage = null
@@ -207,7 +218,8 @@ fun VocaNoteApp() {
                             repository.addWord(
                                 userId = userId,
                                 word = word,
-                                meaning = meaning
+                                meaning = meaning,
+                                note = note
                             )
                         }.onSuccess {
                             selectedDestination = BottomNavDestination.Words
@@ -235,7 +247,7 @@ fun VocaNoteApp() {
                         isSaving = isSavingWord,
                         helperMessage = wordsErrorMessage,
                         onBack = { currentScreen = AppScreen.List },
-                        onSave = { word, meaning ->
+                        onSave = { word, meaning, note ->
                             if (userId == null || isSavingWord) return@WordDetailPage
                             isSavingWord = true
                             wordsErrorMessage = null
@@ -245,7 +257,8 @@ fun VocaNoteApp() {
                                         userId = userId,
                                         wordId = selectedWord.id,
                                         word = word,
-                                        meaning = meaning
+                                        meaning = meaning,
+                                        note = note
                                     )
                                 }.onSuccess {
                                     currentScreen = AppScreen.List

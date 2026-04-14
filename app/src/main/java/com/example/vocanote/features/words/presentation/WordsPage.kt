@@ -38,6 +38,7 @@ private data class QuickAction(val title: String, val subtitle: String, val tint
 @Composable
 fun WordsPage(
     words: List<Pair<String, String>>,
+    todayWordCount: Int,
     onAddWord: () -> Unit,
     onOpenReview: () -> Unit,
     isLoading: Boolean,
@@ -93,7 +94,7 @@ fun WordsPage(
             }
 
             item {
-                SummaryCard(wordCount = words.size, quizCount = maxOf(words.size, 1))
+                SummaryCard(wordCount = words.size, todayWordCount = todayWordCount)
             }
 
             item {
@@ -115,7 +116,7 @@ fun WordsPage(
 }
 
 @Composable
-private fun SummaryCard(wordCount: Int, quizCount: Int) {
+private fun SummaryCard(wordCount: Int, todayWordCount: Int) {
     Surface(
         shape = RoundedCornerShape(24.dp),
         tonalElevation = 1.dp
@@ -142,7 +143,7 @@ private fun SummaryCard(wordCount: Int, quizCount: Int) {
                 )
             }
             Text(
-                text = "오늘 풀 문제 ${quizCount}개",
+                text = "오늘 추가한 단어 ${todayWordCount}개",
                 style = MaterialTheme.typography.bodyLarge
             )
         }

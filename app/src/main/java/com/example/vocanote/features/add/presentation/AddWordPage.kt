@@ -37,11 +37,12 @@ fun AddWordPage(
     onBack: () -> Unit,
     isSaving: Boolean,
     helperMessage: String?,
-    onSave: (String, String) -> Unit,
+    onSave: (String, String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var word by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     var meaning by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+    var note by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -103,10 +104,21 @@ fun AddWordPage(
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                     )
 
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("설명") },
+                        placeholder = { Text("예: probably는 maybe보다 더 강한 아마도") },
+                        shape = RoundedCornerShape(16.dp),
+                        minLines = 3,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                    )
+
                     Button(
                         onClick = {
                             if (word.isNotBlank() && meaning.isNotBlank()) {
-                                onSave(word, meaning)
+                                onSave(word, meaning, note)
                             }
                         },
                         enabled = !isSaving,

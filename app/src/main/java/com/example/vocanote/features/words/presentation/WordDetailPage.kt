@@ -46,12 +46,13 @@ fun WordDetailPage(
     isSaving: Boolean,
     helperMessage: String?,
     onBack: () -> Unit,
-    onSave: (String, String) -> Unit,
+    onSave: (String, String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var currentWord by rememberSaveable(word.id) { mutableStateOf(word.word) }
     var currentMeaning by rememberSaveable(word.id) { mutableStateOf(word.meaning) }
+    var currentNote by rememberSaveable(word.id) { mutableStateOf(word.note) }
     var ttsReady by remember { mutableStateOf(false) }
     var ttsHelperMessage by remember { mutableStateOf<String?>(null) }
     var textToSpeech: TextToSpeech? by remember { mutableStateOf(null) }
@@ -162,6 +163,17 @@ fun WordDetailPage(
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                     )
 
+                    OutlinedTextField(
+                        value = currentNote,
+                        onValueChange = { currentNote = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("설명") },
+                        placeholder = { Text("뜻 차이, 뉘앙스, 예문 느낌") },
+                        shape = RoundedCornerShape(16.dp),
+                        minLines = 3,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                    )
+
                     Button(
                         onClick = {
                             if (ttsReady && currentWord.isNotBlank()) {
@@ -193,7 +205,7 @@ fun WordDetailPage(
                     Button(
                         onClick = {
                             if (currentWord.isNotBlank() && currentMeaning.isNotBlank()) {
-                                onSave(currentWord, currentMeaning)
+                                onSave(currentWord, currentMeaning, currentNote)
                             }
                         },
                         enabled = !isSaving,
