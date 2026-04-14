@@ -61,6 +61,8 @@ fun WordListPage(
 
     val sections = ('A'..'Z').map { letter ->
         letter to filteredWords.filter { it.word.firstOrNull()?.uppercaseChar() == letter }
+    }.let { allSections ->
+        if (query.isBlank()) allSections else allSections.filter { it.second.isNotEmpty() }
     }
 
     Surface(
@@ -106,6 +108,16 @@ fun WordListPage(
                         )
                     }
                 )
+            }
+
+            if (query.isNotBlank() && sections.isEmpty()) {
+                item {
+                    Text(
+                        text = "검색 결과가 없습니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = InkSoft
+                    )
+                }
             }
 
             items(sections, key = { it.first }) { (letter, letterWords) ->

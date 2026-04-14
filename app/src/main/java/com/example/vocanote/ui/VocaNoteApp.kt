@@ -25,7 +25,7 @@ import androidx.credentials.exceptions.GetCredentialException
 import com.example.vocanote.auth.AuthScreen
 import com.example.vocanote.features.add.presentation.AddWordPage
 import com.example.vocanote.features.profile.presentation.ProfilePage
-import com.example.vocanote.features.search.presentation.SearchPage
+import com.example.vocanote.features.review.presentation.ReviewPage
 import com.example.vocanote.features.words.data.FirestoreWordsRepository
 import com.example.vocanote.features.words.data.SavedWord
 import com.example.vocanote.features.words.presentation.WordDetailPage
@@ -175,9 +175,9 @@ fun VocaNoteApp() {
                 }
             )
 
-            AppScreen.Review -> SearchPage(
+            AppScreen.Review -> ReviewPage(
                 modifier = Modifier.padding(innerPadding),
-                wordCount = savedWords.size
+                words = savedWords
             )
 
             AppScreen.Profile -> ProfilePage(
