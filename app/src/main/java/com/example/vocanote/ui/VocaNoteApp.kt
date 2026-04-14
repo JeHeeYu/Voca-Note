@@ -1,18 +1,18 @@
 package com.example.vocanote.ui
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,6 +25,8 @@ import com.example.vocanote.auth.AuthScreen
 import com.example.vocanote.features.add.presentation.AddWordPage
 import com.example.vocanote.features.profile.presentation.ProfilePage
 import com.example.vocanote.features.search.presentation.SearchPage
+import com.example.vocanote.features.words.data.FirestoreWordsRepository
+import com.example.vocanote.features.words.data.SavedWord
 import com.example.vocanote.features.words.presentation.WordListPage
 import com.example.vocanote.features.words.presentation.WordsPage
 import com.example.vocanote.ui.navigation.BottomNavDestination
@@ -38,11 +40,6 @@ import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-private data class WordEntry(
-    val word: String,
-    val meaning: String
-)
-
 private sealed interface AppScreen {
     data object Words : AppScreen
     data object List : AppScreen
@@ -51,37 +48,49 @@ private sealed interface AppScreen {
     data object AddWord : AppScreen
 }
 
-private val WordEntryListSaver = listSaver(
-    save = { words -> words.flatMap { listOf(it.word, it.meaning) } },
-    restore = { raw ->
-        raw.chunked(2).mapNotNull { chunk ->
-            if (chunk.size == 2) WordEntry(chunk[0], chunk[1]) else null
-        }
-    }
-)
-
 @Composable
 fun VocaNoteApp() {
     val context = LocalContext.current
     val auth = remember { FirebaseAuth.getInstance() }
+    val repository = remember { FirestoreWordsRepository() }
     val credentialManager = remember(context) { CredentialManager.create(context) }
     val scope = rememberCoroutineScope()
+    val appVersion = remember(context) { context.findAppVersionLabel() }
 
     var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Words) }
     var selectedDestination by remember { mutableStateOf(BottomNavDestination.Words) }
     var isSigningIn by remember { mutableStateOf(false) }
     var isSignedIn by remember { mutableStateOf(auth.currentUser != null) }
+    var isWordsLoading by remember { mutableStateOf(auth.currentUser != null) }
+    var isSavingWord by remember { mutableStateOf(false) }
+    var wordsErrorMessage by remember { mutableStateOf<String?>(null) }
+    var savedWords by remember { mutableStateOf<List<SavedWord>>(emptyList()) }
 
-    var words by rememberSaveable(stateSaver = WordEntryListSaver) {
-        mutableStateOf(
-            listOf(
-                WordEntry("Apple", "사과"),
-                WordEntry("Brisk", "활기찬"),
-                WordEntry("Calm", "차분한"),
-                WordEntry("Dream", "꿈"),
-                WordEntry("Focus", "집중")
+    val currentUser = auth.currentUser
+    val userId = currentUser?.uid
+
+    DisposableEffect(userId, isSignedIn) {
+        if (!isSignedIn || userId == null) {
+            savedWords = emptyList()
+            isWordsLoading = false
+            wordsErrorMessage = null
+            onDispose { }
+        } else {
+            isWordsLoading = true
+            val registration = repository.observeWords(
+                userId = userId,
+                onSuccess = { words ->
+                    savedWords = words
+                    isWordsLoading = false
+                    wordsErrorMessage = null
+                },
+                onError = {
+                    isWordsLoading = false
+                    wordsErrorMessage = "단어를 불러오지 못했어요."
+                }
             )
-        )
+            onDispose { registration.remove() }
+        }
     }
 
     if (!isSignedIn) {
@@ -96,6 +105,7 @@ fun VocaNoteApp() {
                         credentialManager = credentialManager,
                         auth = auth
                     )
+                    isWordsLoading = isSignedIn
                     isSigningIn = false
                 }
             }
@@ -128,28 +138,33 @@ fun VocaNoteApp() {
         when (currentScreen) {
             AppScreen.Words -> WordsPage(
                 modifier = Modifier.padding(innerPadding),
-                words = words.map { it.word to it.meaning },
+                words = savedWords.map { it.word to it.meaning },
                 onAddWord = { currentScreen = AppScreen.AddWord },
                 onOpenReview = {
                     selectedDestination = BottomNavDestination.Search
                     currentScreen = AppScreen.Review
-                }
+                },
+                isLoading = isWordsLoading,
+                helperMessage = wordsErrorMessage
             )
 
             AppScreen.List -> WordListPage(
                 modifier = Modifier.padding(innerPadding),
-                words = words.map { it.word to it.meaning }
+                words = savedWords.map { it.word to it.meaning },
+                isLoading = isWordsLoading,
+                helperMessage = wordsErrorMessage
             )
 
             AppScreen.Review -> SearchPage(
                 modifier = Modifier.padding(innerPadding),
-                wordCount = words.size
+                wordCount = savedWords.size
             )
 
             AppScreen.Profile -> ProfilePage(
                 modifier = Modifier.padding(innerPadding),
-                userName = auth.currentUser?.displayName ?: "내 계정",
-                userEmail = auth.currentUser?.email ?: "로그인된 계정",
+                userName = currentUser?.displayName ?: "내 계정",
+                userEmail = currentUser?.email ?: "로그인된 계정",
+                appVersion = appVersion,
                 onSignOut = {
                     if (isSigningIn) return@ProfilePage
                     isSigningIn = true
@@ -160,6 +175,9 @@ fun VocaNoteApp() {
                         )
                         selectedDestination = BottomNavDestination.Words
                         currentScreen = AppScreen.Words
+                        savedWords = emptyList()
+                        wordsErrorMessage = null
+                        isWordsLoading = false
                         isSignedIn = false
                         isSigningIn = false
                     }
@@ -169,15 +187,42 @@ fun VocaNoteApp() {
             AppScreen.AddWord -> AddWordPage(
                 modifier = Modifier.padding(innerPadding),
                 onBack = { currentScreen = AppScreen.Words },
+                isSaving = isSavingWord,
+                helperMessage = wordsErrorMessage,
                 onSave = { word, meaning ->
-                    words = (words + WordEntry(word.trim(), meaning.trim()))
-                        .sortedBy { it.word.lowercase() }
-                    selectedDestination = BottomNavDestination.Words
-                    currentScreen = AppScreen.Words
+                    if (userId == null || isSavingWord) return@AddWordPage
+                    isSavingWord = true
+                    wordsErrorMessage = null
+                    scope.launch {
+                        runCatching {
+                            repository.addWord(
+                                userId = userId,
+                                word = word,
+                                meaning = meaning
+                            )
+                        }.onSuccess {
+                            selectedDestination = BottomNavDestination.Words
+                            currentScreen = AppScreen.Words
+                        }.onFailure {
+                            wordsErrorMessage = "단어 저장에 실패했어요."
+                        }
+                        isSavingWord = false
+                    }
                 }
             )
         }
     }
+}
+
+private fun Context.findAppVersionLabel(): String {
+    val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+    } else {
+        @Suppress("DEPRECATION")
+        packageManager.getPackageInfo(packageName, 0)
+    }
+
+    return "v${packageInfo.versionName ?: "1.0"}"
 }
 
 private suspend fun signOut(

@@ -1,6 +1,7 @@
 package com.example.vocanote.features.profile.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Person
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vocanote.ui.theme.BottomBarBorder
 import com.example.vocanote.ui.theme.Canvas
 import com.example.vocanote.ui.theme.InkSoft
 import com.example.vocanote.ui.theme.PrimaryBlue
@@ -33,6 +36,7 @@ import com.example.vocanote.ui.theme.PrimaryBlueSoft
 fun ProfilePage(
     userName: String,
     userEmail: String,
+    appVersion: String,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -106,15 +110,25 @@ fun ProfilePage(
                         .padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "로그인 정보",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = PrimaryBlue
-                    )
-                    Text(
-                        text = "현재 이 계정으로 단어장을 사용하고 있어요.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = InkSoft
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "앱 버전",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = PrimaryBlue
+                        )
+                        Text(
+                            text = appVersion,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = InkSoft
+                        )
+                    }
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = BottomBarBorder.copy(alpha = 0.8f)
                     )
                 }
             }

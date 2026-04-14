@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vocanote.ui.theme.BottomBarBorder
 import com.example.vocanote.ui.theme.Canvas
 import com.example.vocanote.ui.theme.InkSoft
 import com.example.vocanote.ui.theme.PrimaryBlue
@@ -38,6 +40,8 @@ import com.example.vocanote.ui.theme.PrimaryBlue
 @Composable
 fun WordListPage(
     words: List<Pair<String, String>>,
+    isLoading: Boolean,
+    helperMessage: String?,
     modifier: Modifier = Modifier
 ) {
     var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
@@ -74,7 +78,11 @@ fun WordListPage(
                         style = MaterialTheme.typography.headlineMedium
                     )
                     Text(
-                        text = "등록한 단어를 검색하고, 알파벳별로 접어서 볼 수 있어요.",
+                        text = helperMessage ?: if (isLoading) {
+                            "등록한 단어를 불러오는 중이에요."
+                        } else {
+                            "등록한 단어를 검색하고, 알파벳별로 접어서 볼 수 있어요."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = InkSoft
                     )
@@ -99,14 +107,20 @@ fun WordListPage(
             }
 
             items(sections, key = { it.first }) { (letter, letterWords) ->
-                AlphabetSection(
-                    letter = letter,
-                    words = letterWords,
-                    expanded = expandedSections[letter] == true,
-                    onToggle = {
-                        expandedSections[letter] = expandedSections[letter] != true
-                    }
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    AlphabetSection(
+                        letter = letter,
+                        words = letterWords,
+                        expanded = expandedSections[letter] == true,
+                        onToggle = {
+                            expandedSections[letter] = expandedSections[letter] != true
+                        }
+                    )
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = BottomBarBorder.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     }

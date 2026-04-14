@@ -35,6 +35,8 @@ import com.example.vocanote.ui.theme.InkSoft
 @Composable
 fun AddWordPage(
     onBack: () -> Unit,
+    isSaving: Boolean,
+    helperMessage: String?,
     onSave: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -69,7 +71,7 @@ fun AddWordPage(
             }
 
             Text(
-                text = "단어와 뜻을 입력하면 단어장에 바로 추가됩니다.",
+                text = helperMessage ?: "단어와 뜻을 입력하면 단어장에 바로 추가됩니다.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = InkSoft
             )
@@ -107,13 +109,14 @@ fun AddWordPage(
                                 onSave(word, meaning)
                             }
                         },
+                        enabled = !isSaving,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
-                            text = "단어장에 저장",
+                            text = if (isSaving) "저장 중..." else "단어장에 저장",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )

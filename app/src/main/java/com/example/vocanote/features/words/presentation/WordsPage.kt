@@ -40,6 +40,8 @@ fun WordsPage(
     words: List<Pair<String, String>>,
     onAddWord: () -> Unit,
     onOpenReview: () -> Unit,
+    isLoading: Boolean,
+    helperMessage: String?,
     modifier: Modifier = Modifier
 ) {
     val today = rememberFormattedDate()
@@ -79,7 +81,11 @@ fun WordsPage(
                         style = MaterialTheme.typography.headlineMedium
                     )
                     Text(
-                        text = "추가한 단어를 보고, 필요할 때 바로 다시 꺼내보는 공간이에요.",
+                        text = helperMessage ?: if (isLoading) {
+                            "저장된 단어를 불러오는 중이에요."
+                        } else {
+                            "추가한 단어를 보고, 필요할 때 바로 다시 꺼내보는 공간이에요."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = InkSoft
                     )
