@@ -1,19 +1,26 @@
 package com.example.vocanote.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.example.vocanote.auth.AuthScreen
 import com.example.vocanote.features.add.presentation.AddWordPage
 import com.example.vocanote.features.search.presentation.SearchPage
 import com.example.vocanote.features.words.presentation.WordListPage
@@ -21,6 +28,13 @@ import com.example.vocanote.features.words.presentation.WordsPage
 import com.example.vocanote.ui.navigation.BottomNavDestination
 import com.example.vocanote.ui.navigation.VocaBottomNavigationBar
 import com.example.vocanote.ui.theme.Canvas
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 private data class WordEntry(
     val word: String,
@@ -45,8 +59,16 @@ private val WordEntryListSaver = listSaver(
 
 @Composable
 fun VocaNoteApp() {
+    val context = LocalContext.current
+    val auth = remember { FirebaseAuth.getInstance() }
+    val credentialManager = remember(context) { CredentialManager.create(context) }
+    val scope = rememberCoroutineScope()
+
     var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Words) }
     var selectedDestination by remember { mutableStateOf(BottomNavDestination.Words) }
+    var isSigningIn by remember { mutableStateOf(false) }
+    var isSignedIn by remember { mutableStateOf(auth.currentUser != null) }
+
     var words by rememberSaveable(stateSaver = WordEntryListSaver) {
         mutableStateOf(
             listOf(
@@ -57,6 +79,25 @@ fun VocaNoteApp() {
                 WordEntry("Focus", "집중")
             )
         )
+    }
+
+    if (!isSignedIn) {
+        AuthScreen(
+            isLoading = isSigningIn,
+            onGoogleSignIn = {
+                if (isSigningIn) return@AuthScreen
+                isSigningIn = true
+                scope.launch {
+                    isSignedIn = signInWithGoogle(
+                        context = context,
+                        credentialManager = credentialManager,
+                        auth = auth
+                    )
+                    isSigningIn = false
+                }
+            }
+        )
+        return
     }
 
     Scaffold(
@@ -112,5 +153,41 @@ fun VocaNoteApp() {
                 }
             )
         }
+    }
+}
+
+private suspend fun signInWithGoogle(
+    context: Context,
+    credentialManager: CredentialManager,
+    auth: FirebaseAuth
+): Boolean {
+    val googleIdOption = GetGoogleIdOption.Builder()
+        .setFilterByAuthorizedAccounts(false)
+        .setServerClientId("822705486170-6pr84nm3tceeqie79ad2luhc1n1iuqcf.apps.googleusercontent.com")
+        .setAutoSelectEnabled(false)
+        .build()
+
+    val request = GetCredentialRequest.Builder()
+        .addCredentialOption(googleIdOption)
+        .build()
+
+    return try {
+        val result = credentialManager.getCredential(context, request)
+        val credential = result.credential
+        val googleIdTokenCredential = GoogleIdTokenCredential
+            .createFrom(credential.data)
+
+        val firebaseCredential = GoogleAuthProvider.getCredential(
+            googleIdTokenCredential.idToken,
+            null
+        )
+
+        auth.signInWithCredential(firebaseCredential).await().user != null
+    } catch (_: GetCredentialException) {
+        false
+    } catch (_: GoogleIdTokenParsingException) {
+        false
+    } catch (_: Exception) {
+        false
     }
 }
