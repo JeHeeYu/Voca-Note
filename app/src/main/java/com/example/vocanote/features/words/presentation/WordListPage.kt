@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vocanote.features.words.data.SavedWord
 import com.example.vocanote.ui.theme.BottomBarBorder
 import com.example.vocanote.ui.theme.Canvas
 import com.example.vocanote.ui.theme.InkSoft
@@ -39,9 +40,10 @@ import com.example.vocanote.ui.theme.PrimaryBlue
 
 @Composable
 fun WordListPage(
-    words: List<Pair<String, String>>,
+    words: List<SavedWord>,
     isLoading: Boolean,
     helperMessage: String?,
+    onWordClick: (SavedWord) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
@@ -51,14 +53,14 @@ fun WordListPage(
         }
     }
 
-    val filteredWords = words.filter { (word, meaning) ->
+    val filteredWords = words.filter { savedWord ->
         query.isBlank() ||
-            word.contains(query, ignoreCase = true) ||
-            meaning.contains(query, ignoreCase = true)
+            savedWord.word.contains(query, ignoreCase = true) ||
+            savedWord.meaning.contains(query, ignoreCase = true)
     }
 
     val sections = ('A'..'Z').map { letter ->
-        letter to filteredWords.filter { it.first.firstOrNull()?.uppercaseChar() == letter }
+        letter to filteredWords.filter { it.word.firstOrNull()?.uppercaseChar() == letter }
     }
 
     Surface(
@@ -112,6 +114,7 @@ fun WordListPage(
                         letter = letter,
                         words = letterWords,
                         expanded = expandedSections[letter] == true,
+                        onWordClick = onWordClick,
                         onToggle = {
                             expandedSections[letter] = expandedSections[letter] != true
                         }
@@ -129,8 +132,9 @@ fun WordListPage(
 @Composable
 private fun AlphabetSection(
     letter: Char,
-    words: List<Pair<String, String>>,
+    words: List<SavedWord>,
     expanded: Boolean,
+    onWordClick: (SavedWord) -> Unit,
     onToggle: () -> Unit
 ) {
     Surface(shape = RoundedCornerShape(18.dp), tonalElevation = 1.dp) {
@@ -181,7 +185,7 @@ private fun AlphabetSection(
                         color = InkSoft
                     )
                 } else {
-                    words.forEach { (word, meaning) ->
+                    words.forEach { savedWord ->
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             tonalElevation = 0.dp
@@ -189,16 +193,17 @@ private fun AlphabetSection(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .clickable { onWordClick(savedWord) }
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = word,
+                                    text = savedWord.word,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = meaning,
+                                    text = savedWord.meaning,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = InkSoft
                                 )

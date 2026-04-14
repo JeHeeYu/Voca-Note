@@ -1,5 +1,6 @@
 package com.example.vocanote.features.words.data
 
+import kotlinx.coroutines.withTimeout
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -47,16 +48,41 @@ class FirestoreWordsRepository(
         val cleanWord = word.trim()
         val cleanMeaning = meaning.trim()
 
-        userWordsCollection(userId)
-            .add(
-                mapOf(
-                    "word" to cleanWord,
-                    "meaning" to cleanMeaning,
-                    "wordLowercase" to cleanWord.lowercase(),
-                    "createdAt" to Timestamp.now()
+        withTimeout(10_000) {
+            userWordsCollection(userId)
+                .add(
+                    mapOf(
+                        "word" to cleanWord,
+                        "meaning" to cleanMeaning,
+                        "wordLowercase" to cleanWord.lowercase(),
+                        "createdAt" to Timestamp.now()
+                    )
                 )
-            )
-            .await()
+                .await()
+        }
+    }
+
+    suspend fun updateWord(
+        userId: String,
+        wordId: String,
+        word: String,
+        meaning: String
+    ) {
+        val cleanWord = word.trim()
+        val cleanMeaning = meaning.trim()
+
+        withTimeout(10_000) {
+            userWordsCollection(userId)
+                .document(wordId)
+                .update(
+                    mapOf(
+                        "word" to cleanWord,
+                        "meaning" to cleanMeaning,
+                        "wordLowercase" to cleanWord.lowercase()
+                    )
+                )
+                .await()
+        }
     }
 
     private fun userWordsCollection(userId: String) = firestore

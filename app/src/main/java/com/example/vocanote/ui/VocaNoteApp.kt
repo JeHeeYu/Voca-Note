@@ -2,6 +2,7 @@ package com.example.vocanote.ui
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -27,6 +28,7 @@ import com.example.vocanote.features.profile.presentation.ProfilePage
 import com.example.vocanote.features.search.presentation.SearchPage
 import com.example.vocanote.features.words.data.FirestoreWordsRepository
 import com.example.vocanote.features.words.data.SavedWord
+import com.example.vocanote.features.words.presentation.WordDetailPage
 import com.example.vocanote.features.words.presentation.WordListPage
 import com.example.vocanote.features.words.presentation.WordsPage
 import com.example.vocanote.ui.navigation.BottomNavDestination
@@ -38,6 +40,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.tasks.await
 
 private sealed interface AppScreen {
@@ -46,6 +49,7 @@ private sealed interface AppScreen {
     data object Review : AppScreen
     data object Profile : AppScreen
     data object AddWord : AppScreen
+    data object WordDetail : AppScreen
 }
 
 @Composable
@@ -63,6 +67,7 @@ fun VocaNoteApp() {
     var isSignedIn by remember { mutableStateOf(auth.currentUser != null) }
     var isWordsLoading by remember { mutableStateOf(auth.currentUser != null) }
     var isSavingWord by remember { mutableStateOf(false) }
+    var selectedWordId by remember { mutableStateOf<String?>(null) }
     var wordsErrorMessage by remember { mutableStateOf<String?>(null) }
     var savedWords by remember { mutableStateOf<List<SavedWord>>(emptyList()) }
 
@@ -119,7 +124,7 @@ fun VocaNoteApp() {
         contentColor = Color.Unspecified,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
-            if (currentScreen != AppScreen.AddWord) {
+            if (currentScreen != AppScreen.AddWord && currentScreen != AppScreen.WordDetail) {
                 VocaBottomNavigationBar(
                     selectedDestination = selectedDestination,
                     onDestinationSelected = {
@@ -150,9 +155,13 @@ fun VocaNoteApp() {
 
             AppScreen.List -> WordListPage(
                 modifier = Modifier.padding(innerPadding),
-                words = savedWords.map { it.word to it.meaning },
+                words = savedWords,
                 isLoading = isWordsLoading,
-                helperMessage = wordsErrorMessage
+                helperMessage = wordsErrorMessage,
+                onWordClick = { savedWord ->
+                    selectedWordId = savedWord.id
+                    currentScreen = AppScreen.WordDetail
+                }
             )
 
             AppScreen.Review -> SearchPage(
@@ -204,12 +213,55 @@ fun VocaNoteApp() {
                             selectedDestination = BottomNavDestination.Words
                             currentScreen = AppScreen.Words
                         }.onFailure {
-                            wordsErrorMessage = "단어 저장에 실패했어요."
+                            Log.e("VocaNote", "Failed to save word", it)
+                            wordsErrorMessage = when (it) {
+                                is TimeoutCancellationException -> "저장이 오래 걸려서 중단됐어요. Firestore 설정이나 네트워크를 확인해 주세요."
+                                else -> "단어 저장에 실패했어요: ${it.message ?: "원인을 확인해 주세요."}"
+                            }
                         }
                         isSavingWord = false
                     }
                 }
             )
+
+            AppScreen.WordDetail -> {
+                val selectedWord = savedWords.firstOrNull { it.id == selectedWordId }
+                if (selectedWord == null) {
+                    currentScreen = AppScreen.List
+                } else {
+                    WordDetailPage(
+                        modifier = Modifier.padding(innerPadding),
+                        word = selectedWord,
+                        isSaving = isSavingWord,
+                        helperMessage = wordsErrorMessage,
+                        onBack = { currentScreen = AppScreen.List },
+                        onSave = { word, meaning ->
+                            if (userId == null || isSavingWord) return@WordDetailPage
+                            isSavingWord = true
+                            wordsErrorMessage = null
+                            scope.launch {
+                                runCatching {
+                                    repository.updateWord(
+                                        userId = userId,
+                                        wordId = selectedWord.id,
+                                        word = word,
+                                        meaning = meaning
+                                    )
+                                }.onSuccess {
+                                    currentScreen = AppScreen.List
+                                }.onFailure {
+                                    Log.e("VocaNote", "Failed to update word", it)
+                                    wordsErrorMessage = when (it) {
+                                        is TimeoutCancellationException -> "수정이 오래 걸려서 중단됐어요. 다시 시도해 주세요."
+                                        else -> "단어 수정에 실패했어요: ${it.message ?: "원인을 확인해 주세요."}"
+                                    }
+                                }
+                                isSavingWord = false
+                            }
+                        }
+                    )
+                }
+            }
         }
     }
 }
