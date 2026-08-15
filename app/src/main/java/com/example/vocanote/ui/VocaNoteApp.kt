@@ -2,281 +2,85 @@ package com.example.vocanote.ui
 
 import android.content.Context
 import android.os.Build
-import android.util.Log
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialException
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.vocanote.auth.AuthScreen
-import com.example.vocanote.features.add.presentation.AddWordPage
-import com.example.vocanote.features.profile.presentation.ProfilePage
-import com.example.vocanote.features.review.presentation.ReviewPage
-import com.example.vocanote.features.words.data.FirestoreWordsRepository
-import com.example.vocanote.features.words.data.SavedWord
-import com.example.vocanote.features.words.presentation.WordDetailPage
-import com.example.vocanote.features.words.presentation.WordListPage
-import com.example.vocanote.features.words.presentation.WordsPage
-import com.example.vocanote.ui.navigation.BottomNavDestination
-import com.example.vocanote.ui.navigation.VocaBottomNavigationBar
-import com.example.vocanote.ui.theme.Canvas
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
+import com.example.vocanote.auth.GoogleAuthClient
+import com.example.vocanote.ui.navigation.VocaNoteNavigation
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.tasks.await
-import java.time.LocalDate
-import java.time.ZoneId
-
-private sealed interface AppScreen {
-    data object Words : AppScreen
-    data object List : AppScreen
-    data object Review : AppScreen
-    data object Profile : AppScreen
-    data object AddWord : AppScreen
-    data object WordDetail : AppScreen
-}
 
 @Composable
-fun VocaNoteApp() {
+fun VocaNoteApp(
+    viewModel: VocaNoteViewModel = viewModel(
+        factory = remember { VocaNoteViewModel.Factory() }
+    )
+) {
+    val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val auth = remember { FirebaseAuth.getInstance() }
-    val repository = remember { FirestoreWordsRepository() }
-    val credentialManager = remember(context) { CredentialManager.create(context) }
+    val authClient = remember(context) { GoogleAuthClient(context) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val appVersion = remember(context) { context.findAppVersionLabel() }
 
-    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Words) }
-    var selectedDestination by remember { mutableStateOf(BottomNavDestination.Words) }
-    var isSigningIn by remember { mutableStateOf(false) }
-    var isSignedIn by remember { mutableStateOf(auth.currentUser != null) }
-    var isWordsLoading by remember { mutableStateOf(auth.currentUser != null) }
-    var isSavingWord by remember { mutableStateOf(false) }
-    var selectedWordId by remember { mutableStateOf<String?>(null) }
-    var wordsErrorMessage by remember { mutableStateOf<String?>(null) }
-    var savedWords by remember { mutableStateOf<List<SavedWord>>(emptyList()) }
-
-    val currentUser = auth.currentUser
-    val userId = currentUser?.uid
-    val todayWordCount = remember(savedWords) {
-        val today = LocalDate.now()
-        savedWords.count { savedWord ->
-            savedWord.createdAt
-                ?.atZone(ZoneId.systemDefault())
-                ?.toLocalDate() == today
+    LaunchedEffect(state.snackbarMessage) {
+        state.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.consumeSnackbarMessage()
         }
     }
 
-    DisposableEffect(userId, isSignedIn) {
-        if (!isSignedIn || userId == null) {
-            savedWords = emptyList()
-            isWordsLoading = false
-            wordsErrorMessage = null
-            onDispose { }
-        } else {
-            isWordsLoading = true
-            val registration = repository.observeWords(
-                userId = userId,
-                onSuccess = { words ->
-                    savedWords = words
-                    isWordsLoading = false
-                    wordsErrorMessage = null
-                },
-                onError = {
-                    isWordsLoading = false
-                    wordsErrorMessage = "단어를 불러오지 못했어요."
+    if (!state.isSignedIn) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AuthScreen(
+                isLoading = state.isSigningIn,
+                onGoogleSignIn = {
+                    if (state.isSigningIn) return@AuthScreen
+                    viewModel.setSigningIn(true)
+                    scope.launch {
+                        authClient.signIn(context)
+                            .onSuccess(viewModel::onSignedIn)
+                            .onFailure { viewModel.onSignInFailed() }
+                    }
                 }
             )
-            onDispose { registration.remove() }
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
+            )
         }
-    }
-
-    if (!isSignedIn) {
-        AuthScreen(
-            isLoading = isSigningIn,
-            onGoogleSignIn = {
-                if (isSigningIn) return@AuthScreen
-                isSigningIn = true
-                scope.launch {
-                    isSignedIn = signInWithGoogle(
-                        context = context,
-                        credentialManager = credentialManager,
-                        auth = auth
-                    )
-                    isWordsLoading = isSignedIn
-                    isSigningIn = false
-                }
-            }
-        )
         return
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = Canvas,
-        contentColor = Color.Unspecified,
-        contentWindowInsets = WindowInsets.safeDrawing,
-        bottomBar = {
-            if (currentScreen != AppScreen.AddWord && currentScreen != AppScreen.WordDetail) {
-                VocaBottomNavigationBar(
-                    selectedDestination = selectedDestination,
-                    onDestinationSelected = {
-                        selectedDestination = it
-                        currentScreen = when (it) {
-                            BottomNavDestination.Words -> AppScreen.Words
-                            BottomNavDestination.List -> AppScreen.List
-                            BottomNavDestination.Search -> AppScreen.Review
-                            BottomNavDestination.Profile -> AppScreen.Profile
-                        }
-                    }
-                )
+    VocaNoteNavigation(
+        state = state,
+        appVersion = appVersion,
+        snackbarHostState = snackbarHostState,
+        onAddWord = viewModel::addWord,
+        onUpdateWord = viewModel::updateWord,
+        onDeleteWord = viewModel::deleteWord,
+        onUpdateSettings = viewModel::updateReviewSettings,
+        onSaveReviewSession = viewModel::saveReviewSession,
+        onSignOut = {
+            scope.launch {
+                authClient.signOut()
+                viewModel.onSignedOut()
             }
         }
-    ) { innerPadding ->
-        when (currentScreen) {
-            AppScreen.Words -> WordsPage(
-                modifier = Modifier.padding(innerPadding),
-                words = savedWords.map { it.word to it.meaning },
-                todayWordCount = todayWordCount,
-                onAddWord = { currentScreen = AppScreen.AddWord },
-                onOpenReview = {
-                    selectedDestination = BottomNavDestination.Search
-                    currentScreen = AppScreen.Review
-                },
-                isLoading = isWordsLoading,
-                helperMessage = wordsErrorMessage
-            )
-
-            AppScreen.List -> WordListPage(
-                modifier = Modifier.padding(innerPadding),
-                words = savedWords,
-                isLoading = isWordsLoading,
-                helperMessage = wordsErrorMessage,
-                onWordClick = { savedWord ->
-                    selectedWordId = savedWord.id
-                    currentScreen = AppScreen.WordDetail
-                }
-            )
-
-            AppScreen.Review -> ReviewPage(
-                modifier = Modifier.padding(innerPadding),
-                words = savedWords
-            )
-
-            AppScreen.Profile -> ProfilePage(
-                modifier = Modifier.padding(innerPadding),
-                userName = currentUser?.displayName ?: "내 계정",
-                userEmail = currentUser?.email ?: "로그인된 계정",
-                appVersion = appVersion,
-                onSignOut = {
-                    if (isSigningIn) return@ProfilePage
-                    isSigningIn = true
-                    scope.launch {
-                        signOut(
-                            credentialManager = credentialManager,
-                            auth = auth
-                        )
-                        selectedDestination = BottomNavDestination.Words
-                        currentScreen = AppScreen.Words
-                        savedWords = emptyList()
-                        wordsErrorMessage = null
-                        isWordsLoading = false
-                        isSignedIn = false
-                        isSigningIn = false
-                    }
-                }
-            )
-
-            AppScreen.AddWord -> AddWordPage(
-                modifier = Modifier.padding(innerPadding),
-                onBack = { currentScreen = AppScreen.Words },
-                isSaving = isSavingWord,
-                helperMessage = wordsErrorMessage,
-                onSave = { word, meaning, note ->
-                    if (userId == null || isSavingWord) return@AddWordPage
-                    isSavingWord = true
-                    wordsErrorMessage = null
-                    scope.launch {
-                        runCatching {
-                            repository.addWord(
-                                userId = userId,
-                                word = word,
-                                meaning = meaning,
-                                note = note
-                            )
-                        }.onSuccess {
-                            selectedDestination = BottomNavDestination.Words
-                            currentScreen = AppScreen.Words
-                        }.onFailure {
-                            Log.e("VocaNote", "Failed to save word", it)
-                            wordsErrorMessage = when (it) {
-                                is TimeoutCancellationException -> "저장이 오래 걸려서 중단됐어요. Firestore 설정이나 네트워크를 확인해 주세요."
-                                else -> "단어 저장에 실패했어요: ${it.message ?: "원인을 확인해 주세요."}"
-                            }
-                        }
-                        isSavingWord = false
-                    }
-                }
-            )
-
-            AppScreen.WordDetail -> {
-                val selectedWord = savedWords.firstOrNull { it.id == selectedWordId }
-                if (selectedWord == null) {
-                    currentScreen = AppScreen.List
-                } else {
-                    WordDetailPage(
-                        modifier = Modifier.padding(innerPadding),
-                        word = selectedWord,
-                        isSaving = isSavingWord,
-                        helperMessage = wordsErrorMessage,
-                        onBack = { currentScreen = AppScreen.List },
-                        onSave = { word, meaning, note ->
-                            if (userId == null || isSavingWord) return@WordDetailPage
-                            isSavingWord = true
-                            wordsErrorMessage = null
-                            scope.launch {
-                                runCatching {
-                                    repository.updateWord(
-                                        userId = userId,
-                                        wordId = selectedWord.id,
-                                        word = word,
-                                        meaning = meaning,
-                                        note = note
-                                    )
-                                }.onSuccess {
-                                    currentScreen = AppScreen.List
-                                }.onFailure {
-                                    Log.e("VocaNote", "Failed to update word", it)
-                                    wordsErrorMessage = when (it) {
-                                        is TimeoutCancellationException -> "수정이 오래 걸려서 중단됐어요. 다시 시도해 주세요."
-                                        else -> "단어 수정에 실패했어요: ${it.message ?: "원인을 확인해 주세요."}"
-                                    }
-                                }
-                                isSavingWord = false
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    }
+    )
 }
 
 private fun Context.findAppVersionLabel(): String {
@@ -286,53 +90,5 @@ private fun Context.findAppVersionLabel(): String {
         @Suppress("DEPRECATION")
         packageManager.getPackageInfo(packageName, 0)
     }
-
     return "v${packageInfo.versionName ?: "1.0"}"
-}
-
-private suspend fun signOut(
-    credentialManager: CredentialManager,
-    auth: FirebaseAuth
-) {
-    auth.signOut()
-    try {
-        credentialManager.clearCredentialState(ClearCredentialStateRequest())
-    } catch (_: Exception) {
-    }
-}
-
-private suspend fun signInWithGoogle(
-    context: Context,
-    credentialManager: CredentialManager,
-    auth: FirebaseAuth
-): Boolean {
-    val googleIdOption = GetGoogleIdOption.Builder()
-        .setFilterByAuthorizedAccounts(false)
-        .setServerClientId("822705486170-6pr84nm3tceeqie79ad2luhc1n1iuqcf.apps.googleusercontent.com")
-        .setAutoSelectEnabled(false)
-        .build()
-
-    val request = GetCredentialRequest.Builder()
-        .addCredentialOption(googleIdOption)
-        .build()
-
-    return try {
-        val result = credentialManager.getCredential(context, request)
-        val credential = result.credential
-        val googleIdTokenCredential = GoogleIdTokenCredential
-            .createFrom(credential.data)
-
-        val firebaseCredential = GoogleAuthProvider.getCredential(
-            googleIdTokenCredential.idToken,
-            null
-        )
-
-        auth.signInWithCredential(firebaseCredential).await().user != null
-    } catch (_: GetCredentialException) {
-        false
-    } catch (_: GoogleIdTokenParsingException) {
-        false
-    } catch (_: Exception) {
-        false
-    }
 }
