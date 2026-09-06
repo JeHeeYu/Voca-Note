@@ -22,10 +22,15 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -44,6 +49,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.vocanote.core.designsystem.ContentMaxWidth
 import com.example.vocanote.core.designsystem.VocaSpacing
+import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.SavedWord
 import com.example.vocanote.core.model.WordDraft
 import com.example.vocanote.core.speech.rememberWordSpeaker
@@ -62,8 +68,17 @@ fun WordEditorScreen(
 ) {
     var word by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.word.orEmpty()) }
     var meaning by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.meaning.orEmpty()) }
+    var partOfSpeech by rememberSaveable(existingWord?.id) {
+        mutableStateOf(existingWord?.partOfSpeech)
+    }
     var example by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.example.orEmpty()) }
     var note by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.note.orEmpty()) }
+    var synonyms by rememberSaveable(existingWord?.id) {
+        mutableStateOf(existingWord?.synonyms.orEmpty().joinToString("\n"))
+    }
+    var derivatives by rememberSaveable(existingWord?.id) {
+        mutableStateOf(existingWord?.derivatives.orEmpty().joinToString("\n"))
+    }
     var validation by remember { mutableStateOf(WordValidationResult()) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     val speaker = rememberWordSpeaker()
@@ -93,7 +108,11 @@ fun WordEditorScreen(
                     Column {
                         Text(text = existingWord.word, style = MaterialTheme.typography.headlineLarge)
                         Text(
-                            text = "정답률 ${(existingWord.accuracy * 100).toInt()}% · ${existingWord.attemptCount}회 복습",
+                            text = listOfNotNull(
+                                partOfSpeech?.label,
+                                "정답률 ${(existingWord.accuracy * 100).toInt()}%",
+                                "${existingWord.attemptCount}회 복습"
+                            ).joinToString(" · "),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -128,6 +147,10 @@ fun WordEditorScreen(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
                 )
+                PartOfSpeechField(
+                    selected = partOfSpeech,
+                    onSelected = { partOfSpeech = it }
+                )
                 OutlinedTextField(
                     value = meaning,
                     onValueChange = {
@@ -141,9 +164,45 @@ fun WordEditorScreen(
                     isError = validation.meaningError != null,
                     minLines = 2,
                     maxLines = 4,
-                    shape = MaterialTheme.shapes.medium,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
+                    shape = MaterialTheme.shapes.medium
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.medium)) {
+                Text(text = "연관 표현", style = MaterialTheme.typography.titleLarge)
+                OutlinedTextField(
+                    value = synonyms,
+                    onValueChange = {
+                        synonyms = it
+                        validation = validation.copy(synonymsError = null)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("동의어") },
+                    placeholder = { Text("tough\ndurable") },
+                    supportingText = {
+                        Text(validation.synonymsError ?: "한 줄에 하나씩 입력")
+                    },
+                    isError = validation.synonymsError != null,
+                    minLines = 2,
+                    maxLines = 5,
+                    shape = MaterialTheme.shapes.medium
+                )
+                OutlinedTextField(
+                    value = derivatives,
+                    onValueChange = {
+                        derivatives = it
+                        validation = validation.copy(derivativesError = null)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("파생어") },
+                    placeholder = { Text("resilience\nresiliently") },
+                    supportingText = {
+                        Text(validation.derivativesError ?: "한 줄에 하나씩 입력")
+                    },
+                    isError = validation.derivativesError != null,
+                    minLines = 2,
+                    maxLines = 5,
+                    shape = MaterialTheme.shapes.medium
                 )
             }
 
@@ -151,27 +210,33 @@ fun WordEditorScreen(
                 Text(text = "기억을 돕는 메모", style = MaterialTheme.typography.titleLarge)
                 OutlinedTextField(
                     value = example,
-                    onValueChange = { example = it },
+                    onValueChange = {
+                        example = it
+                        validation = validation.copy(exampleError = null)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("예문") },
                     placeholder = { Text("예: Children are often very resilient.") },
+                    supportingText = validation.exampleError?.let { error -> { Text(error) } },
+                    isError = validation.exampleError != null,
                     minLines = 2,
                     maxLines = 5,
-                    shape = MaterialTheme.shapes.medium,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
+                    shape = MaterialTheme.shapes.medium
                 )
                 OutlinedTextField(
                     value = note,
-                    onValueChange = { note = it },
+                    onValueChange = {
+                        note = it
+                        validation = validation.copy(noteError = null)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("나만의 설명") },
-                    placeholder = { Text("뉘앙스, 연상법, 비슷한 표현") },
+                    placeholder = { Text("뉘앙스, 연상법, 사용 상황") },
+                    supportingText = validation.noteError?.let { error -> { Text(error) } },
+                    isError = validation.noteError != null,
                     minLines = 3,
                     maxLines = 7,
-                    shape = MaterialTheme.shapes.medium,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
+                    shape = MaterialTheme.shapes.medium
                 )
             }
 
@@ -185,7 +250,15 @@ fun WordEditorScreen(
 
             Button(
                 onClick = {
-                    val draft = WordDraft(word, meaning, example, note)
+                    val draft = WordDraft(
+                        word = word,
+                        meaning = meaning,
+                        partOfSpeech = partOfSpeech,
+                        example = example,
+                        note = note,
+                        synonyms = synonyms.lines(),
+                        derivatives = derivatives.lines()
+                    )
                     val result = validateWordDraft(draft, allWords, existingWord?.id)
                     validation = result
                     if (result.isValid) onSave(draft.normalized())
@@ -242,6 +315,53 @@ fun WordEditorScreen(
                 TextButton(onClick = { showDeleteDialog = false }) { Text("취소") }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PartOfSpeechField(
+    selected: PartOfSpeech?,
+    onSelected: (PartOfSpeech?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            value = selected?.label ?: "선택 안 함",
+            onValueChange = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            readOnly = true,
+            label = { Text("품사") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            shape = MaterialTheme.shapes.medium
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("선택 안 함") },
+                onClick = {
+                    onSelected(null)
+                    expanded = false
+                }
+            )
+            PartOfSpeech.entries.forEach { part ->
+                DropdownMenuItem(
+                    text = { Text(part.label) },
+                    onClick = {
+                        onSelected(part)
+                        expanded = false
+                    }
+                )
+            }
+        }
     }
 }
 

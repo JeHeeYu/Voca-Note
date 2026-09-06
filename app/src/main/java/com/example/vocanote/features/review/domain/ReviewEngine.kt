@@ -1,5 +1,6 @@
 package com.example.vocanote.features.review.domain
 
+import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.core.model.SavedWord
 import com.example.vocanote.core.model.isDueForReview
@@ -9,10 +10,13 @@ data class ReviewQuestion(
     val wordId: String,
     val prompt: String,
     val answer: String,
+    val partOfSpeech: PartOfSpeech?,
     val options: List<String>,
     val context: String,
     val example: String,
     val note: String,
+    val synonyms: List<String>,
+    val derivatives: List<String>,
     val spokenText: String?
 )
 
@@ -63,6 +67,7 @@ fun buildReviewQuestions(
                 ReviewMode.Listening -> "소리를 듣고 단어를 입력하세요"
             },
             answer = answer,
+            partOfSpeech = current.partOfSpeech,
             options = options,
             context = when (mode) {
                 ReviewMode.Recall,
@@ -72,6 +77,8 @@ fun buildReviewQuestions(
             },
             example = current.example.trim(),
             note = current.note.trim(),
+            synonyms = current.synonyms,
+            derivatives = current.derivatives,
             spokenText = if (mode == ReviewMode.Listening || mode == ReviewMode.Recall) {
                 current.word.trim()
             } else {

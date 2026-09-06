@@ -261,6 +261,14 @@ private fun QuestionPrompt(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            question.partOfSpeech?.let { partOfSpeech ->
+                Text(
+                    text = "품사 · ${partOfSpeech.label}",
+                    modifier = Modifier.padding(bottom = VocaSpacing.small),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             if (mode == ReviewMode.Listening) {
                 Surface(
                     shape = androidx.compose.foundation.shape.CircleShape,
@@ -323,7 +331,28 @@ private fun RecallAnswerPanel(question: ReviewQuestion) {
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+            if (question.synonyms.isNotEmpty()) {
+                RelatedTerms(label = "동의어", terms = question.synonyms)
+            }
+            if (question.derivatives.isNotEmpty()) {
+                RelatedTerms(label = "파생어", terms = question.derivatives)
+            }
         }
+    }
+}
+
+@Composable
+private fun RelatedTerms(label: String, terms: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = terms.joinToString(" · "),
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }
 

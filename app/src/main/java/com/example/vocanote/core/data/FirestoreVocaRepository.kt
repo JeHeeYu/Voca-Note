@@ -1,5 +1,6 @@
 package com.example.vocanote.core.data
 
+import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.ReviewAnswer
 import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.core.model.ReviewSettings
@@ -41,8 +42,11 @@ class FirestoreVocaRepository(
                         id = document.id,
                         word = word,
                         meaning = meaning,
+                        partOfSpeech = PartOfSpeech.fromStorageValue(document.getString("partOfSpeech")),
                         example = document.getString("example")?.trim().orEmpty(),
                         note = document.getString("note")?.trim().orEmpty(),
+                        synonyms = document.get("synonyms").toTermList(),
+                        derivatives = document.get("derivatives").toTermList(),
                         correctCount = document.getLong("correctCount")?.toInt() ?: 0,
                         incorrectCount = document.getLong("incorrectCount")?.toInt() ?: 0,
                         reviewStreak = document.getLong("reviewStreak")?.toInt() ?: 0,
@@ -119,8 +123,11 @@ class FirestoreVocaRepository(
                 mapOf(
                     "word" to clean.word,
                     "meaning" to clean.meaning,
+                    "partOfSpeech" to clean.partOfSpeech?.storageValue,
                     "example" to clean.example,
                     "note" to clean.note,
+                    "synonyms" to clean.synonyms,
+                    "derivatives" to clean.derivatives,
                     "wordLowercase" to clean.word.lowercase(Locale.ROOT),
                     "correctCount" to 0,
                     "incorrectCount" to 0,
@@ -140,8 +147,11 @@ class FirestoreVocaRepository(
                 mapOf(
                     "word" to clean.word,
                     "meaning" to clean.meaning,
+                    "partOfSpeech" to (clean.partOfSpeech?.storageValue ?: FieldValue.delete()),
                     "example" to clean.example,
                     "note" to clean.note,
+                    "synonyms" to clean.synonyms,
+                    "derivatives" to clean.derivatives,
                     "wordLowercase" to clean.word.lowercase(Locale.ROOT),
                     "isFavorite" to FieldValue.delete(),
                     "updatedAt" to FieldValue.serverTimestamp()
@@ -234,3 +244,10 @@ class FirestoreVocaRepository(
         const val SESSION_HISTORY_LIMIT = 120L
     }
 }
+
+private fun Any?.toTermList(): List<String> = (this as? List<*>)
+    .orEmpty()
+    .filterIsInstance<String>()
+    .map(String::trim)
+    .filter(String::isNotBlank)
+    .distinctBy { it.lowercase(Locale.ROOT) }

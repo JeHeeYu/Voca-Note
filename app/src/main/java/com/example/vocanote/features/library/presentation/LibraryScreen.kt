@@ -79,7 +79,11 @@ fun LibraryScreen(
             .filter { word ->
                 query.isBlank() || word.word.contains(query, ignoreCase = true) ||
                     word.meaning.contains(query, ignoreCase = true) ||
-                    word.example.contains(query, ignoreCase = true)
+                    word.example.contains(query, ignoreCase = true) ||
+                    word.partOfSpeech?.label?.contains(query, ignoreCase = true) == true ||
+                    word.partOfSpeech?.storageValue?.contains(query, ignoreCase = true) == true ||
+                    word.synonyms.any { it.contains(query, ignoreCase = true) } ||
+                    word.derivatives.any { it.contains(query, ignoreCase = true) }
             }
             .filter { word ->
                 when (selectedFilter) {
@@ -148,7 +152,7 @@ fun LibraryScreen(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("단어, 뜻, 예문 검색") },
+                    placeholder = { Text("단어, 뜻, 품사, 예문, 연관어 검색") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium
@@ -223,6 +227,13 @@ private fun WordRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                word.partOfSpeech?.let { partOfSpeech ->
+                    Text(
+                        text = partOfSpeech.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 Text(
                     text = word.meaning,
                     style = MaterialTheme.typography.bodyMedium,

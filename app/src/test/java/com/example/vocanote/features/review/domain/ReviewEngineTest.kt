@@ -1,5 +1,6 @@
 package com.example.vocanote.features.review.domain
 
+import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.core.model.SavedWord
 import org.junit.Assert.assertEquals
@@ -67,7 +68,12 @@ class ReviewEngineTest {
 
     @Test
     fun `recall mode reveals meaning and keeps pronunciation text`() {
-        val source = word("1", "resilient", "회복력이 강한").copy(note = "다시 일어서는 힘")
+        val source = word("1", "resilient", "회복력이 강한").copy(
+            partOfSpeech = PartOfSpeech.Adjective,
+            note = "다시 일어서는 힘",
+            synonyms = listOf("tough", "durable"),
+            derivatives = listOf("resilience")
+        )
 
         val question = buildReviewQuestions(
             words = listOf(source),
@@ -77,7 +83,10 @@ class ReviewEngineTest {
 
         assertEquals(source.word, question.prompt)
         assertEquals(source.meaning, question.answer)
+        assertEquals(source.partOfSpeech, question.partOfSpeech)
         assertEquals(source.note, question.note)
+        assertEquals(source.synonyms, question.synonyms)
+        assertEquals(source.derivatives, question.derivatives)
         assertEquals(source.word, question.spokenText)
     }
 

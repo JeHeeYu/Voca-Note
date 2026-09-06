@@ -44,6 +44,34 @@ class WordValidatorTest {
         assertNull(result.wordError)
     }
 
+    @Test
+    fun `related terms are trimmed deduplicated and keep their order`() {
+        val normalized = WordDraft(
+            word = "resilient",
+            meaning = "회복력이 강한",
+            synonyms = listOf(" tough ", "Tough", "durable", ""),
+            derivatives = listOf(" resilience ", "resiliently")
+        ).normalized()
+
+        assertTrue(normalized.synonyms == listOf("tough", "durable"))
+        assertTrue(normalized.derivatives == listOf("resilience", "resiliently"))
+    }
+
+    @Test
+    fun `too many related terms are rejected before saving`() {
+        val result = validateWordDraft(
+            draft = WordDraft(
+                word = "resilient",
+                meaning = "회복력이 강한",
+                synonyms = (1..21).map { "synonym-$it" }
+            ),
+            existingWords = emptyList()
+        )
+
+        assertFalse(result.isValid)
+        assertTrue(result.synonymsError?.contains("20개") == true)
+    }
+
     private fun savedWord(id: String, word: String) = SavedWord(
         id = id,
         word = word,

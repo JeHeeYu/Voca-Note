@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.ReviewSettings
 import com.example.vocanote.core.model.SavedWord
 import com.example.vocanote.core.model.StudyStats
@@ -173,27 +174,31 @@ private val sampleStats = StudyStats(
 private val now: Instant = Instant.now()
 
 private val sampleWords = listOf(
-    sampleWord("resilient", "회복력이 강한, 탄력 있는", correct = 6, incorrect = 1),
-    sampleWord("subtle", "미묘한, 감지하기 어려운", correct = 3, incorrect = 2),
-    sampleWord("elaborate", "정교한; 상세히 설명하다", correct = 1, incorrect = 2),
-    sampleWord("concise", "간결한", correct = 4, incorrect = 1),
-    sampleWord("vivid", "생생한, 선명한"),
-    sampleWord("coherent", "일관성 있는, 논리적인", correct = 2, incorrect = 1),
-    sampleWord("pragmatic", "실용적인, 현실적인", correct = 1, incorrect = 1),
-    sampleWord("nuance", "미묘한 차이", correct = 5)
+    sampleWord("resilient", "회복력이 강한, 탄력 있는", PartOfSpeech.Adjective, correct = 6, incorrect = 1),
+    sampleWord("subtle", "미묘한, 감지하기 어려운", PartOfSpeech.Adjective, correct = 3, incorrect = 2),
+    sampleWord("elaborate", "정교한; 상세히 설명하다", PartOfSpeech.Adjective, correct = 1, incorrect = 2),
+    sampleWord("concise", "간결한", PartOfSpeech.Adjective, correct = 4, incorrect = 1),
+    sampleWord("vivid", "생생한, 선명한", PartOfSpeech.Adjective),
+    sampleWord("coherent", "일관성 있는, 논리적인", PartOfSpeech.Adjective, correct = 2, incorrect = 1),
+    sampleWord("pragmatic", "실용적인, 현실적인", PartOfSpeech.Adjective, correct = 1, incorrect = 1),
+    sampleWord("nuance", "미묘한 차이", PartOfSpeech.Noun, correct = 5)
 )
 
 private fun sampleWord(
     word: String,
     meaning: String,
+    partOfSpeech: PartOfSpeech,
     correct: Int = 0,
     incorrect: Int = 0
 ) = SavedWord(
     id = word,
     word = word,
     meaning = meaning,
+    partOfSpeech = partOfSpeech,
     example = "A clear example makes the meaning easier to remember.",
     note = "문장에서 쓰이는 느낌을 함께 기억하기",
+    synonyms = if (word == "resilient") listOf("tough", "durable", "adaptable") else emptyList(),
+    derivatives = if (word == "resilient") listOf("resilience", "resiliently") else emptyList(),
     correctCount = correct,
     incorrectCount = incorrect,
     createdAt = now.minus((word.length % 5).toLong(), ChronoUnit.DAYS),
