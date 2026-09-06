@@ -303,7 +303,7 @@ private fun DueWordRow(word: SavedWord, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = listOfNotNull(word.partOfSpeech?.label, word.meaning).joinToString(" · "),
+                    text = listOfNotNull(word.partOfSpeech?.displayLabel, word.meaning).joinToString(" · "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

@@ -39,6 +39,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.vocanote.core.designsystem.VocaSpacing
@@ -48,6 +50,8 @@ import com.example.vocanote.features.review.domain.ReviewQuestion
 import com.example.vocanote.features.review.domain.answersMatch
 import com.example.vocanote.ui.theme.AccentCoralLight
 import com.example.vocanote.ui.theme.BrandLight
+
+private val EnglishAnswerLocales = LocaleList("en-US")
 
 @Composable
 internal fun ReviewQuestionContent(
@@ -184,11 +188,18 @@ internal fun ReviewQuestionContent(
                     onValueChange = { if (!isAnswerChecked) onWritingAnswerChange(it) },
                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                     label = { Text("정답") },
-                        placeholder = { Text(if (mode == ReviewMode.Listening) "들은 단어 입력" else "영어 단어 입력") },
+                    placeholder = {
+                        Text(if (mode == ReviewMode.Listening) "들은 단어 입력" else "영어 단어 입력")
+                    },
                     readOnly = isAnswerChecked,
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardOptions = KeyboardOptions(
+                        autoCorrectEnabled = false,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done,
+                        hintLocales = EnglishAnswerLocales
+                    ),
                     keyboardActions = KeyboardActions(onDone = {
                         keyboardController?.hide()
                         if (writingAnswer.isNotBlank()) onCheckWriting()
@@ -263,7 +274,7 @@ private fun QuestionPrompt(
         ) {
             question.partOfSpeech?.let { partOfSpeech ->
                 Text(
-                    text = "품사 · ${partOfSpeech.label}",
+                    text = "품사 · ${partOfSpeech.displayLabel}",
                     modifier = Modifier.padding(bottom = VocaSpacing.small),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary

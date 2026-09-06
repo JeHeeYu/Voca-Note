@@ -81,6 +81,7 @@ fun LibraryScreen(
                     word.meaning.contains(query, ignoreCase = true) ||
                     word.example.contains(query, ignoreCase = true) ||
                     word.partOfSpeech?.label?.contains(query, ignoreCase = true) == true ||
+                    word.partOfSpeech?.abbreviation?.contains(query, ignoreCase = true) == true ||
                     word.partOfSpeech?.storageValue?.contains(query, ignoreCase = true) == true ||
                     word.synonyms.any { it.contains(query, ignoreCase = true) } ||
                     word.antonyms.any { it.contains(query, ignoreCase = true) } ||
@@ -232,7 +233,7 @@ private fun WordRow(
                 )
                 word.partOfSpeech?.let { partOfSpeech ->
                     Text(
-                        text = partOfSpeech.label,
+                        text = partOfSpeech.displayLabel,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )

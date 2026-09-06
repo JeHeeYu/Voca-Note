@@ -11,6 +11,10 @@ class PartOfSpeechTest {
             listOf("명사", "대명사", "동사", "형용사", "부사", "전치사", "접속사", "감탄사"),
             PartOfSpeech.entries.map(PartOfSpeech::label)
         )
+        assertEquals(
+            listOf("n", "pron", "v", "adj", "adv", "prep", "conj", "interj"),
+            PartOfSpeech.entries.map(PartOfSpeech::abbreviation)
+        )
     }
 
     @Test

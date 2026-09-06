@@ -46,12 +46,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.dp
 import com.example.vocanote.core.designsystem.ContentMaxWidth
 import com.example.vocanote.core.designsystem.VocaSpacing
@@ -62,6 +62,9 @@ import com.example.vocanote.core.speech.rememberWordSpeaker
 import com.example.vocanote.features.editor.domain.WordValidationResult
 import com.example.vocanote.features.editor.domain.validateWordDraft
 import kotlinx.coroutines.launch
+
+private val EnglishInputLocales = LocaleList("en-US")
+private val KoreanInputLocales = LocaleList("ko-KR")
 
 @Composable
 fun WordEditorScreen(
@@ -101,8 +104,8 @@ fun WordEditorScreen(
     var validation by remember { mutableStateOf(WordValidationResult()) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     val speaker = rememberWordSpeaker()
-    val focusManager = LocalFocusManager.current
     val wordFocusRequester = remember { FocusRequester() }
+    val meaningFocusRequester = remember { FocusRequester() }
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -158,7 +161,7 @@ fun WordEditorScreen(
                         Text(text = existingWord.word, style = MaterialTheme.typography.headlineLarge)
                         Text(
                             text = listOfNotNull(
-                                partOfSpeech?.label,
+                                partOfSpeech?.displayLabel,
                                 "정답률 ${(existingWord.accuracy * 100).toInt()}%",
                                 "${existingWord.attemptCount}회 복습"
                             ).joinToString(" · "),
@@ -195,8 +198,15 @@ fun WordEditorScreen(
                     isError = validation.wordError != null,
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
+                    keyboardOptions = KeyboardOptions(
+                        autoCorrectEnabled = false,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Next,
+                        hintLocales = EnglishInputLocales
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { meaningFocusRequester.requestFocus() }
+                    )
                 )
                 PartOfSpeechField(
                     selected = partOfSpeech,
@@ -208,13 +218,16 @@ fun WordEditorScreen(
                         meaning = it
                         validation = validation.copy(meaningError = null)
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(meaningFocusRequester),
                     label = { Text("뜻") },
                     placeholder = { Text("예: 회복력이 강한, 탄력 있는") },
                     supportingText = validation.meaningError?.let { error -> { Text(error) } },
                     isError = validation.meaningError != null,
                     minLines = 2,
                     maxLines = 4,
+                    keyboardOptions = KeyboardOptions(hintLocales = KoreanInputLocales),
                     shape = MaterialTheme.shapes.medium
                 )
             }
@@ -269,6 +282,7 @@ fun WordEditorScreen(
                     isError = validation.exampleError != null,
                     minLines = 2,
                     maxLines = 5,
+                    keyboardOptions = KeyboardOptions(hintLocales = EnglishInputLocales),
                     shape = MaterialTheme.shapes.medium
                 )
                 OutlinedTextField(
@@ -284,6 +298,7 @@ fun WordEditorScreen(
                     isError = validation.noteError != null,
                     minLines = 3,
                     maxLines = 7,
+                    keyboardOptions = KeyboardOptions(hintLocales = KoreanInputLocales),
                     shape = MaterialTheme.shapes.medium
                 )
             }
@@ -481,6 +496,11 @@ private fun RelatedTermsEditor(
             isError = error != null,
             minLines = 3,
             maxLines = 6,
+            keyboardOptions = KeyboardOptions(
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Ascii,
+                hintLocales = EnglishInputLocales
+            ),
             shape = MaterialTheme.shapes.medium
         )
     }
@@ -499,7 +519,7 @@ private fun PartOfSpeechField(
         onExpandedChange = { expanded = it }
     ) {
         OutlinedTextField(
-            value = selected?.label ?: "선택 안 함",
+            value = selected?.displayLabel ?: "선택 안 함",
             onValueChange = {},
             modifier = Modifier
                 .fillMaxWidth()
@@ -524,7 +544,7 @@ private fun PartOfSpeechField(
             )
             PartOfSpeech.entries.forEach { part ->
                 DropdownMenuItem(
-                    text = { Text(part.label) },
+                    text = { Text(part.displayLabel) },
                     onClick = {
                         onSelected(part)
                         expanded = false
