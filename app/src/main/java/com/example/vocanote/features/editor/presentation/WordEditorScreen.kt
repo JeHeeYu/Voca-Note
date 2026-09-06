@@ -33,17 +33,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -55,6 +61,7 @@ import com.example.vocanote.core.model.WordDraft
 import com.example.vocanote.core.speech.rememberWordSpeaker
 import com.example.vocanote.features.editor.domain.WordValidationResult
 import com.example.vocanote.features.editor.domain.validateWordDraft
+import kotlinx.coroutines.launch
 
 @Composable
 fun WordEditorScreen(
@@ -62,7 +69,7 @@ fun WordEditorScreen(
     allWords: List<SavedWord>,
     isSaving: Boolean,
     onBack: () -> Unit,
-    onSave: (WordDraft) -> Unit,
+    onSave: (WordDraft, onSuccess: () -> Unit) -> Unit,
     onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
@@ -76,21 +83,63 @@ fun WordEditorScreen(
     var synonyms by rememberSaveable(existingWord?.id) {
         mutableStateOf(existingWord?.synonyms.orEmpty().joinToString("\n"))
     }
+    var antonyms by rememberSaveable(existingWord?.id) {
+        mutableStateOf(existingWord?.antonyms.orEmpty().joinToString("\n"))
+    }
     var derivatives by rememberSaveable(existingWord?.id) {
         mutableStateOf(existingWord?.derivatives.orEmpty().joinToString("\n"))
+    }
+    var confusableWords by rememberSaveable(existingWord?.id) {
+        mutableStateOf(existingWord?.confusableWords.orEmpty().joinToString("\n"))
+    }
+    var collocations by rememberSaveable(existingWord?.id) {
+        mutableStateOf(existingWord?.collocations.orEmpty().joinToString("\n"))
+    }
+    var relatedTermKind by rememberSaveable(existingWord?.id) {
+        mutableStateOf(RelatedTermKind.Synonym)
     }
     var validation by remember { mutableStateOf(WordValidationResult()) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     val speaker = rememberWordSpeaker()
     val focusManager = LocalFocusManager.current
+    val wordFocusRequester = remember { FocusRequester() }
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val relatedTermValue = when (relatedTermKind) {
+        RelatedTermKind.Synonym -> synonyms
+        RelatedTermKind.Antonym -> antonyms
+        RelatedTermKind.Derivative -> derivatives
+        RelatedTermKind.Confusable -> confusableWords
+        RelatedTermKind.Collocation -> collocations
+    }
+    val relatedTermError = when (relatedTermKind) {
+        RelatedTermKind.Synonym -> validation.synonymsError
+        RelatedTermKind.Antonym -> validation.antonymsError
+        RelatedTermKind.Derivative -> validation.derivativesError
+        RelatedTermKind.Confusable -> validation.confusableWordsError
+        RelatedTermKind.Collocation -> validation.collocationsError
+    }
+    val relatedTermCounts = mapOf(
+        RelatedTermKind.Synonym to synonyms.termCount(),
+        RelatedTermKind.Antonym to antonyms.termCount(),
+        RelatedTermKind.Derivative to derivatives.termCount(),
+        RelatedTermKind.Confusable to confusableWords.termCount(),
+        RelatedTermKind.Collocation to collocations.termCount()
+    )
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .widthIn(max = ContentMaxWidth)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = VocaSpacing.large, vertical = VocaSpacing.medium),
+                .verticalScroll(scrollState)
+                .padding(
+                    start = VocaSpacing.large,
+                    top = VocaSpacing.medium,
+                    end = VocaSpacing.large,
+                    bottom = 112.dp
+                ),
             verticalArrangement = Arrangement.spacedBy(VocaSpacing.large)
         ) {
             EditorTopBar(
@@ -137,7 +186,9 @@ fun WordEditorScreen(
                         word = it
                         validation = validation.copy(wordError = null)
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(wordFocusRequester),
                     label = { Text("영어 단어") },
                     placeholder = { Text("예: resilient") },
                     supportingText = validation.wordError?.let { error -> { Text(error) } },
@@ -170,39 +221,36 @@ fun WordEditorScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.medium)) {
                 Text(text = "연관 표현", style = MaterialTheme.typography.titleLarge)
-                OutlinedTextField(
-                    value = synonyms,
-                    onValueChange = {
-                        synonyms = it
-                        validation = validation.copy(synonymsError = null)
+                RelatedTermsEditor(
+                    selectedKind = relatedTermKind,
+                    onKindSelected = { relatedTermKind = it },
+                    value = relatedTermValue,
+                    onValueChange = { value ->
+                        when (relatedTermKind) {
+                            RelatedTermKind.Synonym -> {
+                                synonyms = value
+                                validation = validation.copy(synonymsError = null)
+                            }
+                            RelatedTermKind.Antonym -> {
+                                antonyms = value
+                                validation = validation.copy(antonymsError = null)
+                            }
+                            RelatedTermKind.Derivative -> {
+                                derivatives = value
+                                validation = validation.copy(derivativesError = null)
+                            }
+                            RelatedTermKind.Confusable -> {
+                                confusableWords = value
+                                validation = validation.copy(confusableWordsError = null)
+                            }
+                            RelatedTermKind.Collocation -> {
+                                collocations = value
+                                validation = validation.copy(collocationsError = null)
+                            }
+                        }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("동의어") },
-                    placeholder = { Text("tough\ndurable") },
-                    supportingText = {
-                        Text(validation.synonymsError ?: "한 줄에 하나씩 입력")
-                    },
-                    isError = validation.synonymsError != null,
-                    minLines = 2,
-                    maxLines = 5,
-                    shape = MaterialTheme.shapes.medium
-                )
-                OutlinedTextField(
-                    value = derivatives,
-                    onValueChange = {
-                        derivatives = it
-                        validation = validation.copy(derivativesError = null)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("파생어") },
-                    placeholder = { Text("resilience\nresiliently") },
-                    supportingText = {
-                        Text(validation.derivativesError ?: "한 줄에 하나씩 입력")
-                    },
-                    isError = validation.derivativesError != null,
-                    minLines = 2,
-                    maxLines = 5,
-                    shape = MaterialTheme.shapes.medium
+                    error = relatedTermError,
+                    counts = relatedTermCounts
                 )
             }
 
@@ -248,40 +296,6 @@ fun WordEditorScreen(
                 )
             }
 
-            Button(
-                onClick = {
-                    val draft = WordDraft(
-                        word = word,
-                        meaning = meaning,
-                        partOfSpeech = partOfSpeech,
-                        example = example,
-                        note = note,
-                        synonyms = synonyms.lines(),
-                        derivatives = derivatives.lines()
-                    )
-                    val result = validateWordDraft(draft, allWords, existingWord?.id)
-                    validation = result
-                    if (result.isValid) onSave(draft.normalized())
-                },
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(Icons.Default.Save, contentDescription = null)
-                    Text(
-                        text = if (existingWord == null) "단어장에 추가" else "변경사항 저장",
-                        modifier = Modifier.padding(start = VocaSpacing.small)
-                    )
-                }
-            }
-
             if (existingWord != null && onDelete != null) {
                 OutlinedButton(
                     onClick = { showDeleteDialog = true },
@@ -291,6 +305,84 @@ fun WordEditorScreen(
                 ) {
                     Icon(Icons.Default.DeleteOutline, contentDescription = null)
                     Text(text = "단어 삭제", modifier = Modifier.padding(start = VocaSpacing.small))
+                }
+            }
+        }
+
+        Surface(
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            color = Color.White,
+            shadowElevation = 6.dp
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(
+                    horizontal = VocaSpacing.large,
+                    vertical = VocaSpacing.medium
+                ),
+                contentAlignment = Alignment.Center
+            ) {
+                Button(
+                    onClick = {
+                        val draft = WordDraft(
+                            word = word,
+                            meaning = meaning,
+                            partOfSpeech = partOfSpeech,
+                            example = example,
+                            note = note,
+                            synonyms = synonyms.lines(),
+                            antonyms = antonyms.lines(),
+                            derivatives = derivatives.lines(),
+                            confusableWords = confusableWords.lines(),
+                            collocations = collocations.lines()
+                        )
+                        val result = validateWordDraft(draft, allWords, existingWord?.id)
+                        validation = result
+                        result.firstInvalidRelatedTermKind()?.let { relatedTermKind = it }
+                        if (result.isValid) {
+                            onSave(draft.normalized()) {
+                                if (existingWord == null) {
+                                    word = ""
+                                    meaning = ""
+                                    partOfSpeech = null
+                                    example = ""
+                                    note = ""
+                                    synonyms = ""
+                                    antonyms = ""
+                                    derivatives = ""
+                                    confusableWords = ""
+                                    collocations = ""
+                                    relatedTermKind = RelatedTermKind.Synonym
+                                    validation = WordValidationResult()
+                                    coroutineScope.launch {
+                                        scrollState.animateScrollTo(0)
+                                        wordFocusRequester.requestFocus()
+                                    }
+                                } else {
+                                    onBack()
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isSaving,
+                    modifier = Modifier
+                        .widthIn(max = ContentMaxWidth)
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Icon(Icons.Default.Save, contentDescription = null)
+                        Text(
+                            text = if (existingWord == null) "저장하고 다음 단어" else "변경사항 저장",
+                            modifier = Modifier.padding(start = VocaSpacing.small)
+                        )
+                    }
                 }
             }
         }
@@ -318,6 +410,82 @@ fun WordEditorScreen(
     }
 }
 
+private enum class RelatedTermKind(
+    val label: String,
+    val shortLabel: String,
+    val placeholder: String
+) {
+    Synonym("유의어", "유", "tough\ndurable"),
+    Antonym("반의어", "반", "fragile\nvulnerable"),
+    Derivative("파생어", "파", "resilience\nresiliently"),
+    Confusable("혼동어", "혼", "resistant\nresolute"),
+    Collocation("숙어·연어", "숙·연", "highly resilient\nbounce back")
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RelatedTermsEditor(
+    selectedKind: RelatedTermKind,
+    onKindSelected: (RelatedTermKind) -> Unit,
+    value: String,
+    onValueChange: (String) -> Unit,
+    error: String?,
+    counts: Map<RelatedTermKind, Int>
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.medium)) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it }
+        ) {
+            OutlinedTextField(
+                value = selectedKind.label,
+                onValueChange = {},
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                readOnly = true,
+                label = { Text("연관 어휘 분류") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = whiteDropdownColors(),
+                shape = MaterialTheme.shapes.medium
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                containerColor = Color.White
+            ) {
+                RelatedTermKind.entries.forEach { kind ->
+                    val count = counts[kind] ?: 0
+                    DropdownMenuItem(
+                        text = { Text(kind.label) },
+                        onClick = {
+                            onKindSelected(kind)
+                            expanded = false
+                        },
+                        trailingIcon = count.takeIf { it > 0 }?.let {
+                            { Text("${it}개", color = MaterialTheme.colorScheme.primary) }
+                        }
+                    )
+                }
+            }
+        }
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(selectedKind.label) },
+            placeholder = { Text(selectedKind.placeholder) },
+            supportingText = { Text(error ?: "${selectedKind.shortLabel} · 한 줄에 하나씩 입력") },
+            isError = error != null,
+            minLines = 3,
+            maxLines = 6,
+            shape = MaterialTheme.shapes.medium
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PartOfSpeechField(
@@ -339,11 +507,13 @@ private fun PartOfSpeechField(
             readOnly = true,
             label = { Text("품사") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = whiteDropdownColors(),
             shape = MaterialTheme.shapes.medium
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            containerColor = Color.White
         ) {
             DropdownMenuItem(
                 text = { Text("선택 안 함") },
@@ -363,6 +533,27 @@ private fun PartOfSpeechField(
             }
         }
     }
+}
+
+@Composable
+private fun whiteDropdownColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White,
+    disabledContainerColor = Color.White,
+    errorContainerColor = Color.White
+)
+
+private fun String.termCount(): Int = lineSequence()
+    .map(String::trim)
+    .count(String::isNotBlank)
+
+private fun WordValidationResult.firstInvalidRelatedTermKind(): RelatedTermKind? = when {
+    synonymsError != null -> RelatedTermKind.Synonym
+    antonymsError != null -> RelatedTermKind.Antonym
+    derivativesError != null -> RelatedTermKind.Derivative
+    confusableWordsError != null -> RelatedTermKind.Confusable
+    collocationsError != null -> RelatedTermKind.Collocation
+    else -> null
 }
 
 @Composable

@@ -50,11 +50,17 @@ class WordValidatorTest {
             word = "resilient",
             meaning = "회복력이 강한",
             synonyms = listOf(" tough ", "Tough", "durable", ""),
-            derivatives = listOf(" resilience ", "resiliently")
+            antonyms = listOf(" fragile ", "Fragile", "vulnerable"),
+            derivatives = listOf(" resilience ", "resiliently"),
+            confusableWords = listOf(" resistant ", "resolute"),
+            collocations = listOf(" highly resilient ", "bounce back")
         ).normalized()
 
         assertTrue(normalized.synonyms == listOf("tough", "durable"))
+        assertTrue(normalized.antonyms == listOf("fragile", "vulnerable"))
         assertTrue(normalized.derivatives == listOf("resilience", "resiliently"))
+        assertTrue(normalized.confusableWords == listOf("resistant", "resolute"))
+        assertTrue(normalized.collocations == listOf("highly resilient", "bounce back"))
     }
 
     @Test
@@ -70,6 +76,28 @@ class WordValidatorTest {
 
         assertFalse(result.isValid)
         assertTrue(result.synonymsError?.contains("20개") == true)
+    }
+
+    @Test
+    fun `every related term category is validated`() {
+        val longTerm = "a".repeat(81)
+        val result = validateWordDraft(
+            draft = WordDraft(
+                word = "resilient",
+                meaning = "회복력이 강한",
+                antonyms = listOf(longTerm),
+                derivatives = listOf(longTerm),
+                confusableWords = listOf(longTerm),
+                collocations = listOf(longTerm)
+            ),
+            existingWords = emptyList()
+        )
+
+        assertFalse(result.isValid)
+        assertTrue(result.antonymsError != null)
+        assertTrue(result.derivativesError != null)
+        assertTrue(result.confusableWordsError != null)
+        assertTrue(result.collocationsError != null)
     }
 
     private fun savedWord(id: String, word: String) = SavedWord(

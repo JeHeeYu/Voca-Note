@@ -42,7 +42,7 @@ Voca Note는 단어를 저장하는 데서 끝나지 않습니다. 답을 보기
     <td width="50%" align="center">
       <img src="docs/screenshots/editor.png" alt="단어 상세 편집 화면" width="340"><br>
       <strong>단어 상세</strong><br>
-      뜻, 동의어, 파생어, 예문과 개인 메모를 함께 기록하고 TTS로 발음을 확인합니다.
+      고정 저장 버튼으로 어느 위치에서든 저장하고 새 단어를 연속으로 추가합니다.
     </td>
     <td width="50%" align="center">
       <img src="docs/screenshots/part-of-speech.png" alt="8품사 선택 메뉴" width="340"><br>
@@ -50,12 +50,19 @@ Voca Note는 단어를 저장하는 데서 끝나지 않습니다. 답을 보기
       명사부터 감탄사까지 드롭다운에서 선택해 단어와 함께 학습합니다.
     </td>
   </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src="docs/screenshots/related-terms.png" alt="연관 어휘 분류 메뉴" width="340"><br>
+      <strong>연관 어휘</strong><br>
+      유의어·반의어·파생어·혼동어·숙어/연어를 전환하며 한 화면에 모아 기록합니다.
+    </td>
+  </tr>
 </table>
 
 ## Learning Flow
 
 1. 강의, 문서, 영상에서 만난 단어와 뜻을 기록합니다.
-2. 8품사 중 하나를 선택하고 동의어·파생어·예문과 나만의 설명을 더해 실제 문맥과 연결합니다.
+2. 품사와 유의어·반의어·파생어·혼동어·숙어/연어를 묶어 단어의 쓰임을 확장합니다.
 3. 오늘 복습할 단어를 기억 카드, 선택형, 쓰기, 듣기로 꺼내 봅니다.
 4. 틀린 단어만 즉시 다시 연습합니다.
 5. 성공하면 `1일 → 3일 → 이전 간격의 2배`로 늘리고, 실패하면 10분 뒤 다시 보여 줍니다.
@@ -66,7 +73,7 @@ Voca Note는 단어를 저장하는 데서 끝나지 않습니다. 답을 보기
 | 영역 | 제공 기능 |
 | --- | --- |
 | 계정 | Credential Manager 기반 Google 로그인, Firebase Authentication |
-| 단어 | 추가·수정·삭제, 8품사 선택, 중복 검증, 예문, 개인 메모, 동의어, 파생어, Android TTS 발음 |
+| 단어 | 연속 추가, 8품사 선택, 유의어·반의어·파생어·혼동어·숙어/연어, 예문, 메모, Android TTS 발음 |
 | 탐색 | 단어·뜻·품사·예문·연관어 통합 검색, 오늘 복습/오답 필터, 알파벳/최근/학습 우선순 정렬 |
 | 연습 | 품사를 함께 보여 주는 능동 회상 카드, 4지선다, 빈칸 예문 쓰기, 듣고 철자 쓰기 |
 | 반복 | 다음 복습 시각 계산, 오답 즉시 재연습, 최대 180일 간격 반복 |
@@ -109,7 +116,8 @@ app/src/main/java/com/example/vocanote
 
 ```text
 users/{uid}/words/{wordId}
-  word, wordLowercase, meaning, partOfSpeech, example, note, synonyms, derivatives
+  word, wordLowercase, meaning, partOfSpeech, example, note
+  synonyms, antonyms, derivatives, confusableWords, collocations
   correctCount, incorrectCount, reviewStreak, reviewIntervalDays
   createdAt, updatedAt, lastReviewedAt, nextReviewAt
 
@@ -144,7 +152,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ```bash
 adb shell am start -n com.example.vocanote/.debug.UiCatalogActivity --es screen home
-# screen: home, library, review, settings, editor
+# screen: home, library, review, settings, editor, new-editor
 ```
 
 ## Verification

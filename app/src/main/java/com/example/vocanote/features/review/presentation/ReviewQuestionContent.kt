@@ -332,10 +332,19 @@ private fun RecallAnswerPanel(question: ReviewQuestion) {
                 )
             }
             if (question.synonyms.isNotEmpty()) {
-                RelatedTerms(label = "동의어", terms = question.synonyms)
+                RelatedTerms(label = "유의어", terms = question.synonyms)
+            }
+            if (question.antonyms.isNotEmpty()) {
+                RelatedTerms(label = "반의어", terms = question.antonyms)
             }
             if (question.derivatives.isNotEmpty()) {
                 RelatedTerms(label = "파생어", terms = question.derivatives)
+            }
+            if (question.confusableWords.isNotEmpty()) {
+                RelatedTerms(label = "혼동어", terms = question.confusableWords)
+            }
+            if (question.collocations.isNotEmpty()) {
+                RelatedTerms(label = "숙어·연어", terms = question.collocations)
             }
         }
     }

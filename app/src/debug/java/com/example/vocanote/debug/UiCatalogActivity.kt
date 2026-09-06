@@ -79,7 +79,7 @@ private fun CatalogScreen(screen: String) {
         "library" -> BottomNavDestination.Library
         "review" -> BottomNavDestination.Review
         "settings" -> BottomNavDestination.Settings
-        "editor" -> null
+        "editor", "new-editor" -> null
         else -> BottomNavDestination.Home
     }
 
@@ -133,8 +133,17 @@ private fun CatalogScreen(screen: String) {
                     allWords = sampleWords,
                     isSaving = false,
                     onBack = {},
-                    onSave = {},
+                    onSave = { _, onSuccess -> onSuccess() },
                     onDelete = {},
+                    modifier = modifier
+                )
+                "new-editor" -> WordEditorScreen(
+                    existingWord = null,
+                    allWords = sampleWords,
+                    isSaving = false,
+                    onBack = {},
+                    onSave = { _, onSuccess -> onSuccess() },
+                    onDelete = null,
                     modifier = modifier
                 )
                 else -> HomeScreen(
@@ -198,7 +207,10 @@ private fun sampleWord(
     example = "A clear example makes the meaning easier to remember.",
     note = "문장에서 쓰이는 느낌을 함께 기억하기",
     synonyms = if (word == "resilient") listOf("tough", "durable", "adaptable") else emptyList(),
+    antonyms = if (word == "resilient") listOf("fragile", "vulnerable") else emptyList(),
     derivatives = if (word == "resilient") listOf("resilience", "resiliently") else emptyList(),
+    confusableWords = if (word == "resilient") listOf("resistant", "resolute") else emptyList(),
+    collocations = if (word == "resilient") listOf("highly resilient", "bounce back") else emptyList(),
     correctCount = correct,
     incorrectCount = incorrect,
     createdAt = now.minus((word.length % 5).toLong(), ChronoUnit.DAYS),

@@ -83,7 +83,10 @@ fun LibraryScreen(
                     word.partOfSpeech?.label?.contains(query, ignoreCase = true) == true ||
                     word.partOfSpeech?.storageValue?.contains(query, ignoreCase = true) == true ||
                     word.synonyms.any { it.contains(query, ignoreCase = true) } ||
-                    word.derivatives.any { it.contains(query, ignoreCase = true) }
+                    word.antonyms.any { it.contains(query, ignoreCase = true) } ||
+                    word.derivatives.any { it.contains(query, ignoreCase = true) } ||
+                    word.confusableWords.any { it.contains(query, ignoreCase = true) } ||
+                    word.collocations.any { it.contains(query, ignoreCase = true) }
             }
             .filter { word ->
                 when (selectedFilter) {

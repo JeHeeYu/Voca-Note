@@ -13,7 +13,10 @@ data class SavedWord(
     val example: String = "",
     val note: String = "",
     val synonyms: List<String> = emptyList(),
+    val antonyms: List<String> = emptyList(),
     val derivatives: List<String> = emptyList(),
+    val confusableWords: List<String> = emptyList(),
+    val collocations: List<String> = emptyList(),
     val correctCount: Int = 0,
     val incorrectCount: Int = 0,
     val reviewStreak: Int = 0,
@@ -43,7 +46,10 @@ data class WordDraft(
     val example: String = "",
     val note: String = "",
     val synonyms: List<String> = emptyList(),
-    val derivatives: List<String> = emptyList()
+    val antonyms: List<String> = emptyList(),
+    val derivatives: List<String> = emptyList(),
+    val confusableWords: List<String> = emptyList(),
+    val collocations: List<String> = emptyList()
 ) {
     fun normalized(): WordDraft = copy(
         word = word.trim(),
@@ -51,7 +57,10 @@ data class WordDraft(
         example = example.trim(),
         note = note.trim(),
         synonyms = synonyms.normalizedTerms(),
-        derivatives = derivatives.normalizedTerms()
+        antonyms = antonyms.normalizedTerms(),
+        derivatives = derivatives.normalizedTerms(),
+        confusableWords = confusableWords.normalizedTerms(),
+        collocations = collocations.normalizedTerms()
     )
 }
 

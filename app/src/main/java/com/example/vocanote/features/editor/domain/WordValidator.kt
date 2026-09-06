@@ -9,7 +9,10 @@ data class WordValidationResult(
     val exampleError: String? = null,
     val noteError: String? = null,
     val synonymsError: String? = null,
-    val derivativesError: String? = null
+    val antonymsError: String? = null,
+    val derivativesError: String? = null,
+    val confusableWordsError: String? = null,
+    val collocationsError: String? = null
 ) {
     val isValid: Boolean
         get() = listOf(
@@ -18,7 +21,10 @@ data class WordValidationResult(
             exampleError,
             noteError,
             synonymsError,
-            derivativesError
+            antonymsError,
+            derivativesError,
+            confusableWordsError,
+            collocationsError
         ).all { it == null }
 }
 
@@ -48,8 +54,11 @@ fun validateWordDraft(
             ?.let { "예문은 500자 이내로 입력해 주세요." },
         noteError = clean.note.takeIf { it.length > 1000 }
             ?.let { "설명은 1,000자 이내로 입력해 주세요." },
-        synonymsError = validateTerms(clean.synonyms, "동의어"),
-        derivativesError = validateTerms(clean.derivatives, "파생어")
+        synonymsError = validateTerms(clean.synonyms, "유의어"),
+        antonymsError = validateTerms(clean.antonyms, "반의어"),
+        derivativesError = validateTerms(clean.derivatives, "파생어"),
+        confusableWordsError = validateTerms(clean.confusableWords, "혼동어"),
+        collocationsError = validateTerms(clean.collocations, "숙어·연어")
     )
 }
 

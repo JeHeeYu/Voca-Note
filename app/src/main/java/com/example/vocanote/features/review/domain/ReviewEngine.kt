@@ -16,7 +16,10 @@ data class ReviewQuestion(
     val example: String,
     val note: String,
     val synonyms: List<String>,
+    val antonyms: List<String>,
     val derivatives: List<String>,
+    val confusableWords: List<String>,
+    val collocations: List<String>,
     val spokenText: String?
 )
 
@@ -78,7 +81,10 @@ fun buildReviewQuestions(
             example = current.example.trim(),
             note = current.note.trim(),
             synonyms = current.synonyms,
+            antonyms = current.antonyms,
             derivatives = current.derivatives,
+            confusableWords = current.confusableWords,
+            collocations = current.collocations,
             spokenText = if (mode == ReviewMode.Listening || mode == ReviewMode.Recall) {
                 current.word.trim()
             } else {

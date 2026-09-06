@@ -72,7 +72,10 @@ class ReviewEngineTest {
             partOfSpeech = PartOfSpeech.Adjective,
             note = "다시 일어서는 힘",
             synonyms = listOf("tough", "durable"),
-            derivatives = listOf("resilience")
+            antonyms = listOf("fragile"),
+            derivatives = listOf("resilience"),
+            confusableWords = listOf("resistant"),
+            collocations = listOf("highly resilient")
         )
 
         val question = buildReviewQuestions(
@@ -86,7 +89,10 @@ class ReviewEngineTest {
         assertEquals(source.partOfSpeech, question.partOfSpeech)
         assertEquals(source.note, question.note)
         assertEquals(source.synonyms, question.synonyms)
+        assertEquals(source.antonyms, question.antonyms)
         assertEquals(source.derivatives, question.derivatives)
+        assertEquals(source.confusableWords, question.confusableWords)
+        assertEquals(source.collocations, question.collocations)
         assertEquals(source.word, question.spokenText)
     }
 

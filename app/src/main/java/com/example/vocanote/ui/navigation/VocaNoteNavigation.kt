@@ -150,11 +150,11 @@ fun VocaNoteNavigation(
                     allWords = state.words,
                     isSaving = state.isSaving,
                     onBack = navController::popBackStack,
-                    onSave = { draft ->
+                    onSave = { draft, onSuccess ->
                         if (wordId == AppRoute.NewWordId) {
-                            onAddWord(draft, navController::popBackStack)
+                            onAddWord(draft, onSuccess)
                         } else if (wordId != null) {
-                            onUpdateWord(wordId, draft, navController::popBackStack)
+                            onUpdateWord(wordId, draft, onSuccess)
                         }
                     },
                     onDelete = if (existingWord == null) null else {

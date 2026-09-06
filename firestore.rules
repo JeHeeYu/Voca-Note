@@ -15,7 +15,10 @@ service cloud.firestore {
         'example',
         'note',
         'synonyms',
+        'antonyms',
         'derivatives',
+        'confusableWords',
+        'collocations',
         'correctCount',
         'incorrectCount',
         'reviewStreak',
@@ -47,7 +50,10 @@ service cloud.firestore {
         && (!('example' in data) || (data.example is string && data.example.size() <= 500))
         && (!('note' in data) || (data.note is string && data.note.size() <= 1000))
         && (!('synonyms' in data) || (data.synonyms is list && data.synonyms.size() <= 20))
+        && (!('antonyms' in data) || (data.antonyms is list && data.antonyms.size() <= 20))
         && (!('derivatives' in data) || (data.derivatives is list && data.derivatives.size() <= 20))
+        && (!('confusableWords' in data) || (data.confusableWords is list && data.confusableWords.size() <= 20))
+        && (!('collocations' in data) || (data.collocations is list && data.collocations.size() <= 20))
         && (!('correctCount' in data) || (data.correctCount is int && data.correctCount >= 0))
         && (!('incorrectCount' in data) || (data.incorrectCount is int && data.incorrectCount >= 0))
         && (!('reviewStreak' in data) || (data.reviewStreak is int && data.reviewStreak >= 0 && data.reviewStreak <= 10000))
