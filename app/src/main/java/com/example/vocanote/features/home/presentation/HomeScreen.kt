@@ -43,6 +43,7 @@ import com.example.vocanote.core.designsystem.component.LoadingState
 import com.example.vocanote.core.designsystem.component.SectionHeader
 import com.example.vocanote.core.model.ReviewSettings
 import com.example.vocanote.core.model.SavedWord
+import com.example.vocanote.core.model.meaningSummary
 import com.example.vocanote.core.model.StudyStats
 import com.example.vocanote.core.model.buildWordInsights
 import com.example.vocanote.ui.UserProfile
@@ -303,7 +304,7 @@ private fun DueWordRow(word: SavedWord, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = listOfNotNull(word.partOfSpeech?.displayLabel, word.meaning).joinToString(" · "),
+                    text = word.meaningSummary,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

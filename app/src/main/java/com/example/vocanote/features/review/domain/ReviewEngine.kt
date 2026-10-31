@@ -4,7 +4,14 @@ import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.core.model.SavedWord
 import com.example.vocanote.core.model.isDueForReview
+import com.example.vocanote.core.model.WordMeaning
+import com.example.vocanote.core.model.wordMeanings
+import java.time.Instant
+import java.util.Locale
 import kotlin.random.Random
+
+enum class ReviewScope { All, Due, Mistakes }
+enum class ReviewPresentation { Single, Batch }
 
 data class ReviewQuestion(
     val wordId: String,
@@ -20,42 +27,47 @@ data class ReviewQuestion(
     val derivatives: List<String>,
     val confusableWords: List<String>,
     val collocations: List<String>,
-    val spokenText: String?
+    val spokenText: String?,
+    val meanings: List<WordMeaning> = emptyList()
 )
+
+private fun distractorsFor(word: SavedWord, pool: List<SavedWord>): List<String> {
+    val own = word.wordMeanings.map { it.meaning.trim().lowercase(Locale.ROOT) }.toSet()
+    return pool.filter { it.id != word.id }.flatMap { it.wordMeanings }
+        .map { it.meaning.trim() }.filter { it.isNotBlank() && it.lowercase(Locale.ROOT) !in own }
+        .distinctBy { it.lowercase(Locale.ROOT) }
+}
+
+fun eligibleReviewWords(words: List<SavedWord>, targets: List<SavedWord>, mode: ReviewMode): List<SavedWord> =
+    targets.filter { word -> word.word.isNotBlank() && word.wordMeanings.any { it.meaning.isNotBlank() } &&
+        (mode != ReviewMode.MultipleChoice || distractorsFor(word, words).isNotEmpty()) }
 
 fun buildReviewQuestions(
     words: List<SavedWord>,
     mode: ReviewMode,
     targetCount: Int,
-    random: Random = Random.Default
+    random: Random = Random.Default,
+    targets: List<SavedWord> = words,
+    scope: ReviewScope = ReviewScope.All,
+    now: Instant = Instant.now()
 ): List<ReviewQuestion> {
-    val eligibleWords = words
-        .filter { it.word.isNotBlank() && it.meaning.isNotBlank() }
-        .shuffled(random)
-        .sortedWith(
-            compareBy<SavedWord> { !it.isDueForReview() }
-                .thenBy { it.accuracy }
-                .thenByDescending { it.incorrectCount }
-        )
-        .take(targetCount.coerceAtLeast(0))
+    val shuffled = eligibleReviewWords(words, targets, mode).shuffled(random)
+    val ordered = if (scope == ReviewScope.All) shuffled else shuffled.sortedWith(
+        compareBy<SavedWord> { !it.isDueForReview(now) }.thenBy { it.accuracy }.thenByDescending { it.incorrectCount }
+    )
+    val eligibleWords = ordered.take(targetCount.coerceIn(0, 30))
 
     return eligibleWords.map { current ->
+        val meanings = current.wordMeanings.filter { it.meaning.isNotBlank() }
+        val selected = meanings.random(random)
         val answer = when (mode) {
-            ReviewMode.Recall,
-            ReviewMode.MultipleChoice -> current.meaning.trim()
+            ReviewMode.Recall -> meanings.joinToString(" · ") { it.meaning.trim() }
+            ReviewMode.MultipleChoice -> selected.meaning.trim()
             ReviewMode.Writing,
             ReviewMode.Listening -> current.word.trim()
         }
         val options = if (mode == ReviewMode.MultipleChoice) {
-            val wrongAnswers = words
-                .asSequence()
-                .filter { it.id != current.id }
-                .map { it.meaning.trim() }
-                .filter { it.isNotBlank() && !it.equals(answer, ignoreCase = true) }
-                .distinct()
-                .toList()
-                .shuffled(random)
-                .take(3)
+            val wrongAnswers = distractorsFor(current, words).shuffled(random).take(3)
             (wrongAnswers + answer).distinct().shuffled(random)
         } else {
             emptyList()
@@ -66,11 +78,12 @@ fun buildReviewQuestions(
             prompt = when (mode) {
                 ReviewMode.Recall,
                 ReviewMode.MultipleChoice -> current.word.trim()
-                ReviewMode.Writing -> current.meaning.trim()
+                ReviewMode.Writing -> selected.meaning.trim()
                 ReviewMode.Listening -> "소리를 듣고 단어를 입력하세요"
             },
             answer = answer,
-            partOfSpeech = current.partOfSpeech,
+            partOfSpeech = if (mode == ReviewMode.Writing || mode == ReviewMode.MultipleChoice) selected.partOfSpeech else null,
+            meanings = meanings,
             options = options,
             context = when (mode) {
                 ReviewMode.Recall,
@@ -100,4 +113,9 @@ fun answersMatch(input: String, answer: String): Boolean =
 private fun String.toCloze(word: String): String {
     if (isBlank()) return ""
     return replace(Regex(Regex.escape(word), RegexOption.IGNORE_CASE), "_____")
+}
+
+fun gradeBatch(questions: List<ReviewQuestion>, inputs: Map<String, String>): Map<String, Boolean>? {
+    if (questions.isEmpty() || questions.any { inputs[it.wordId].isNullOrBlank() }) return null
+    return questions.associate { it.wordId to answersMatch(inputs.getValue(it.wordId), it.answer) }
 }

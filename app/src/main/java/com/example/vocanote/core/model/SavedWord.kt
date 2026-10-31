@@ -24,7 +24,8 @@ data class SavedWord(
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
     val lastReviewedAt: Instant? = null,
-    val nextReviewAt: Instant? = null
+    val nextReviewAt: Instant? = null,
+    val meanings: List<WordMeaning> = emptyList()
 ) {
     val attemptCount: Int
         get() = correctCount + incorrectCount
@@ -49,11 +50,16 @@ data class WordDraft(
     val antonyms: List<String> = emptyList(),
     val derivatives: List<String> = emptyList(),
     val confusableWords: List<String> = emptyList(),
-    val collocations: List<String> = emptyList()
+    val collocations: List<String> = emptyList(),
+    val meanings: List<WordMeaning> = emptyList()
 ) {
-    fun normalized(): WordDraft = copy(
+    fun normalized(): WordDraft {
+        val entries = wordMeanings.map { it.copy(meaning = it.meaning.trim()) }
+        return copy(
         word = word.trim(),
-        meaning = meaning.trim(),
+        meaning = entries.first().meaning,
+        partOfSpeech = entries.first().partOfSpeech,
+        meanings = entries,
         example = example.trim(),
         note = note.trim(),
         synonyms = synonyms.normalizedTerms(),
@@ -61,7 +67,8 @@ data class WordDraft(
         derivatives = derivatives.normalizedTerms(),
         confusableWords = confusableWords.normalizedTerms(),
         collocations = collocations.normalizedTerms()
-    )
+        )
+    }
 }
 
 private fun List<String>.normalizedTerms(): List<String> = map(String::trim)

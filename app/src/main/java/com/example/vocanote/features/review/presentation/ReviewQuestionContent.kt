@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -85,7 +86,15 @@ internal fun ReviewQuestionContent(
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().onPreviewKeyEvent { event ->
+            if ((event.key == Key.Enter || event.key == Key.NumPadEnter) &&
+                (isAnswerChecked || mode == ReviewMode.Writing || mode == ReviewMode.Listening)) {
+                if (event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount == 0) {
+                    if (isAnswerChecked) onNext() else if (writingAnswer.isNotBlank()) onCheckWriting()
+                }
+                true
+            } else false
+        },
         contentPadding = PaddingValues(
             start = VocaSpacing.large,
             top = VocaSpacing.medium,
@@ -202,7 +211,7 @@ internal fun ReviewQuestionContent(
                     ),
                     keyboardActions = KeyboardActions(onDone = {
                         keyboardController?.hide()
-                        if (writingAnswer.isNotBlank()) onCheckWriting()
+                        if (isAnswerChecked) onNext() else if (writingAnswer.isNotBlank()) onCheckWriting()
                     })
                 )
             }
@@ -237,6 +246,7 @@ internal fun ReviewQuestionContent(
                     showAnswer = mode != ReviewMode.Recall
                 )
             }
+            if (mode != ReviewMode.Recall) item { MeaningList(question.meanings) }
             item {
                 Button(
                     onClick = onNext,
@@ -327,7 +337,7 @@ private fun RecallAnswerPanel(question: ReviewQuestion) {
             modifier = Modifier.padding(VocaSpacing.large),
             verticalArrangement = Arrangement.spacedBy(VocaSpacing.small)
         ) {
-            Text(text = question.answer, style = MaterialTheme.typography.headlineSmall)
+            MeaningList(question.meanings)
             if (question.example.isNotBlank()) {
                 Text(
                     text = question.example,

@@ -129,9 +129,16 @@ class VocaNoteViewModel(
         ) { userId -> repository.updateReviewSettings(userId, settings) }
     }
 
-    fun saveReviewSession(mode: ReviewMode, answers: List<ReviewAnswer>) {
-        mutate(showBusy = false, successMessage = "오늘의 연습 기록을 저장했어요.") { userId ->
-            repository.saveReviewSession(userId, mode, answers)
+    fun saveReviewSession(id: String, mode: ReviewMode, answers: List<ReviewAnswer>, onComplete: (String?) -> Unit) {
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            onComplete("계정 연결을 확인하고 다시 저장해 주세요.")
+            return
+        }
+        viewModelScope.launch {
+            runCatching { repository.saveReviewSession(userId, id, mode, answers) }
+                .onSuccess { onComplete(null) }
+                .onFailure { onComplete(it.toFriendlyMessage()) }
         }
     }
 

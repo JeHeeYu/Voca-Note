@@ -1,181 +1,108 @@
 package com.example.vocanote.features.review.presentation
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.vocanote.core.designsystem.ContentMaxWidth
-import com.example.vocanote.core.model.ReviewAnswer
-import com.example.vocanote.core.model.ReviewMode
-import com.example.vocanote.core.model.ReviewSettings
-import com.example.vocanote.core.model.SavedWord
-import com.example.vocanote.core.model.isDueForReview
-import com.example.vocanote.core.model.needsMistakePractice
-import com.example.vocanote.core.model.toReviewAnswer
-import com.example.vocanote.features.review.domain.answersMatch
-import com.example.vocanote.features.review.domain.buildReviewQuestions
-
-private enum class ReviewPhase { Setup, Question, Finished }
-internal enum class ReviewScope { Due, Mistakes, All }
+import com.example.vocanote.core.model.*
+import com.example.vocanote.features.review.domain.*
 
 @Composable
 fun ReviewScreen(
     words: List<SavedWord>,
     settings: ReviewSettings,
-    onSaveSession: (ReviewMode, List<ReviewAnswer>) -> Unit,
+    onSaveSession: SaveReviewSession,
     onAddWord: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSessionStatusChange: (Boolean, Boolean) -> Unit = { _, _ -> },
+    session: ReviewSessionViewModel = viewModel()
 ) {
-    var selectedMode by rememberSaveable { mutableStateOf(ReviewMode.Recall) }
-    var selectedScope by rememberSaveable { mutableStateOf(ReviewScope.Due) }
-    var phase by rememberSaveable { mutableStateOf(ReviewPhase.Setup) }
-    var sessionId by rememberSaveable { mutableIntStateOf(0) }
-    var currentIndex by rememberSaveable { mutableIntStateOf(0) }
-    var selectedOption by rememberSaveable { mutableStateOf<String?>(null) }
-    var writingAnswer by rememberSaveable { mutableStateOf("") }
-    var isAnswerChecked by rememberSaveable { mutableStateOf(false) }
-    var isAnswerRevealed by rememberSaveable { mutableStateOf(false) }
-    var recallResult by rememberSaveable { mutableStateOf<Boolean?>(null) }
-    var restrictedWordIds by remember { mutableStateOf<Set<String>?>(null) }
-    val answers = remember { mutableStateListOf<ReviewAnswer>() }
-    val scopeWords = remember(words, selectedScope, restrictedWordIds) {
-        restrictedWordIds?.let { ids -> words.filter { it.id in ids } } ?: when (selectedScope) {
-            ReviewScope.Due -> words.filter { it.isDueForReview() }
-            ReviewScope.Mistakes -> words
-                .filter { it.needsMistakePractice() }
-                .sortedWith(compareBy<SavedWord> { it.accuracy }.thenByDescending { it.incorrectCount })
-            ReviewScope.All -> words
-        }
-    }
-    val questions = remember(scopeWords, words, selectedMode, settings.sessionSize, sessionId) {
-        buildReviewQuestions(scopeWords, selectedMode, settings.sessionSize)
-    }
+    var mode by rememberSaveable { mutableStateOf(session.state.mode) }
+    var scope by rememberSaveable { mutableStateOf(ReviewScope.All) }
+    var presentation by rememberSaveable { mutableStateOf(session.state.presentation) }
+    var count by rememberSaveable { mutableStateOf(settings.sessionSize.toString()) }
+    var confirmExit by remember { mutableStateOf(false) }
+    val state = session.state
+    LaunchedEffect(state.dirty, state.saving) { onSessionStatusChange(state.dirty, state.saving) }
+    DisposableEffect(Unit) { onDispose { onSessionStatusChange(false, false) } }
 
-    fun resetSession(restriction: Set<String>? = null) {
-        restrictedWordIds = restriction
-        sessionId += 1
-        currentIndex = 0
-        selectedOption = null
-        writingAnswer = ""
-        isAnswerChecked = false
-        isAnswerRevealed = false
-        recallResult = null
-        answers.clear()
+    fun start(restriction: Set<String>? = null) {
+        session.start(words, mode, presentation, scope, restriction?.size ?: (count.toIntOrNull() ?: 10), restriction)
     }
-
-    fun recordAnswer(wordId: String, remembered: Boolean) {
-        if (answers.any { it.wordId == wordId }) return
-        words.firstOrNull { it.id == wordId }?.let { word ->
-            answers += word.toReviewAnswer(remembered)
-        }
-    }
+    fun exit() { if (state.dirty) confirmExit = true else session.reset() }
+    BackHandler(state.phase != ReviewPhase.Setup) { exit() }
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        when (phase) {
+        val content = Modifier.widthIn(max = ContentMaxWidth)
+        when (state.phase) {
             ReviewPhase.Setup -> ReviewSetupContent(
-                modifier = Modifier.widthIn(max = ContentMaxWidth),
-                words = words,
-                selectedMode = selectedMode,
-                selectedScope = selectedScope,
-                targetCount = settings.sessionSize,
-                onModeChange = { selectedMode = it },
-                onScopeChange = { selectedScope = it },
-                onStart = {
-                    resetSession(restriction = null)
-                    phase = ReviewPhase.Question
+                words = words, selectedMode = mode, selectedScope = scope,
+                targetCount = count, presentation = presentation,
+                onModeChange = { mode = it }, onScopeChange = { scope = it },
+                onCountChange = { count = it },
+                onPresentationChange = {
+                    presentation = it
+                    if (it == ReviewPresentation.Batch && mode == ReviewMode.Recall) mode = ReviewMode.Writing
                 },
-                onAddWord = onAddWord
+                onStart = { start() }, onAddWord = onAddWord, modifier = content
             )
-
-            ReviewPhase.Question -> {
-                val question = questions.getOrNull(currentIndex)
-                if (question == null) {
-                    phase = ReviewPhase.Setup
-                } else {
-                    ReviewQuestionContent(
-                        modifier = Modifier.widthIn(max = ContentMaxWidth),
-                        mode = selectedMode,
-                        question = question,
-                        currentIndex = currentIndex,
-                        totalCount = questions.size,
-                        selectedOption = selectedOption,
-                        writingAnswer = writingAnswer,
-                        isAnswerChecked = isAnswerChecked,
-                        isAnswerRevealed = isAnswerRevealed,
-                        recallResult = recallResult,
-                        onExit = { phase = ReviewPhase.Setup },
-                        onSelectOption = { option ->
-                            if (!isAnswerChecked) {
-                                selectedOption = option
-                                isAnswerChecked = true
-                                recordAnswer(question.wordId, option == question.answer)
-                            }
-                        },
-                        onRevealRecall = { isAnswerRevealed = true },
-                        onRateRecall = { remembered ->
-                            if (!isAnswerChecked) {
-                                recallResult = remembered
-                                isAnswerChecked = true
-                                recordAnswer(question.wordId, remembered)
-                            }
-                        },
-                        onWritingAnswerChange = { writingAnswer = it },
-                        onCheckWriting = {
-                            if (!isAnswerChecked) {
-                                isAnswerChecked = true
-                                recordAnswer(question.wordId, answersMatch(writingAnswer, question.answer))
-                            }
-                        },
-                        onNext = {
-                            if (currentIndex == questions.lastIndex) {
-                                onSaveSession(selectedMode, answers.toList())
-                                phase = ReviewPhase.Finished
-                            } else {
-                                currentIndex += 1
-                                selectedOption = null
-                                writingAnswer = ""
-                                isAnswerChecked = false
-                                isAnswerRevealed = false
-                                recallResult = null
-                            }
-                        }
+            ReviewPhase.Question, ReviewPhase.Graded -> {
+                if (state.presentation == ReviewPresentation.Batch) {
+                    BatchReviewContent(
+                        state = state, onInput = session::input,
+                        onCheck = { if (session.checkBatch()) session.save(onSaveSession) },
+                        onRetrySave = { session.save(onSaveSession) },
+                        onSummary = session::showSummary, onExit = ::exit, modifier = content
                     )
+                } else {
+                    state.current?.let { question ->
+                        ReviewQuestionContent(
+                            modifier = content, mode = state.mode, question = question,
+                            currentIndex = state.index, totalCount = state.questions.size,
+                            selectedOption = state.inputs[question.wordId],
+                            writingAnswer = state.inputs[question.wordId].orEmpty(),
+                            isAnswerChecked = state.checked, isAnswerRevealed = state.revealed,
+                            recallResult = state.answers.firstOrNull { it.wordId == question.wordId }?.isCorrect,
+                            onExit = ::exit,
+                            onSelectOption = { session.input(question.wordId, it); session.check() },
+                            onRevealRecall = session::reveal, onRateRecall = session::check,
+                            onWritingAnswerChange = { session.input(question.wordId, it) },
+                            onCheckWriting = { session.check() },
+                            onNext = {
+                                session.advance()
+                                if (session.state.phase == ReviewPhase.Finished) session.save(onSaveSession)
+                            }
+                        )
+                    }
                 }
             }
-
-            ReviewPhase.Finished -> ReviewFinishedContent(
-                modifier = Modifier.widthIn(max = ContentMaxWidth),
-                correctCount = answers.count { it.isCorrect },
-                totalCount = answers.size,
-                incorrectCount = answers.count { !it.isCorrect },
-                onRestart = {
-                    resetSession(restrictedWordIds)
-                    phase = ReviewPhase.Question
-                },
-                onRetryMistakes = answers.filterNot { it.isCorrect }
-                    .map { it.wordId }
-                    .toSet()
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { missedIds ->
-                        {
-                            resetSession(missedIds)
-                            phase = ReviewPhase.Question
-                        }
-                    },
-                onDone = {
-                    restrictedWordIds = null
-                    phase = ReviewPhase.Setup
+            ReviewPhase.Finished -> Column(modifier = content) {
+                ReviewSaveStatus(state, onRetry = { session.save(onSaveSession) })
+                if (state.presentation == ReviewPresentation.Batch) {
+                    TextButton(onClick = session::showAnswers, modifier = Modifier.fillMaxWidth()) { Text("전체 답안 다시 보기") }
                 }
-            )
+                ReviewFinishedContent(
+                    correctCount = state.answers.count { it.isCorrect }, totalCount = state.answers.size,
+                    incorrectCount = state.answers.count { !it.isCorrect },
+                    actionsEnabled = state.saved,
+                    onRestart = { start(state.questions.map { it.wordId }.toSet()) }, onDone = session::reset,
+                    onRetryMistakes = state.answers.filterNot { it.isCorrect }.map { it.wordId }.filter { id -> words.any { it.id == id } }.toSet()
+                        .takeIf { it.isNotEmpty() }?.let { ids -> { start(ids) } },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
+    if (confirmExit) AlertDialog(
+        onDismissRequest = { confirmExit = false },
+        title = { Text(if (state.saving) "학습 기록을 저장하고 있어요" else "연습을 나갈까요?") },
+        text = { Text(if (state.saving) "저장이 끝날 때까지 기다려 주세요." else "저장하지 않은 답안과 학습 기록이 사라져요.") },
+        confirmButton = { TextButton(enabled = !state.saving, onClick = { session.reset(); confirmExit = false }) { Text("나가기") } },
+        dismissButton = { TextButton(onClick = { confirmExit = false }) { Text("계속하기") } }
+    )
 }

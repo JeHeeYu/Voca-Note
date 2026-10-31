@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +59,10 @@ import com.example.vocanote.core.designsystem.VocaSpacing
 import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.SavedWord
 import com.example.vocanote.core.model.WordDraft
+import com.example.vocanote.core.model.WordMeaning
+import com.example.vocanote.core.model.wordMeanings
+import com.example.vocanote.core.model.splitMeaningEntries
+import com.example.vocanote.core.model.MAX_MEANINGS
 import com.example.vocanote.core.speech.rememberWordSpeaker
 import com.example.vocanote.features.editor.domain.WordValidationResult
 import com.example.vocanote.features.editor.domain.validateWordDraft
@@ -77,9 +82,8 @@ fun WordEditorScreen(
     modifier: Modifier = Modifier
 ) {
     var word by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.word.orEmpty()) }
-    var meaning by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.meaning.orEmpty()) }
-    var partOfSpeech by rememberSaveable(existingWord?.id) {
-        mutableStateOf(existingWord?.partOfSpeech)
+    var meanings by rememberSaveable(existingWord?.id, stateSaver = MeaningListSaver) {
+        mutableStateOf(existingWord?.wordMeanings ?: listOf(WordMeaning()))
     }
     var example by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.example.orEmpty()) }
     var note by rememberSaveable(existingWord?.id) { mutableStateOf(existingWord?.note.orEmpty()) }
@@ -161,7 +165,7 @@ fun WordEditorScreen(
                         Text(text = existingWord.word, style = MaterialTheme.typography.headlineLarge)
                         Text(
                             text = listOfNotNull(
-                                partOfSpeech?.displayLabel,
+                                meanings.mapNotNull { it.partOfSpeech?.displayLabel }.distinct().joinToString(" · ").takeIf { it.isNotBlank() },
                                 "정답률 ${(existingWord.accuracy * 100).toInt()}%",
                                 "${existingWord.attemptCount}회 복습"
                             ).joinToString(" · "),
@@ -208,28 +212,55 @@ fun WordEditorScreen(
                         onNext = { meaningFocusRequester.requestFocus() }
                     )
                 )
-                PartOfSpeechField(
-                    selected = partOfSpeech,
-                    onSelected = { partOfSpeech = it }
-                )
-                OutlinedTextField(
-                    value = meaning,
-                    onValueChange = {
-                        meaning = it
-                        validation = validation.copy(meaningError = null)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(meaningFocusRequester),
-                    label = { Text("뜻") },
-                    placeholder = { Text("예: 회복력이 강한, 탄력 있는") },
-                    supportingText = validation.meaningError?.let { error -> { Text(error) } },
-                    isError = validation.meaningError != null,
-                    minLines = 2,
-                    maxLines = 4,
-                    keyboardOptions = KeyboardOptions(hintLocales = KoreanInputLocales),
-                    shape = MaterialTheme.shapes.medium
-                )
+                meanings.forEachIndexed { index, entry ->
+                    Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("뜻 ${index + 1}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                            if (meanings.size > 1) {
+                                TextButton(onClick = {
+                                    meanings = meanings.filterIndexed { i, _ -> i != index }
+                                    validation = validation.copy(meaningError = null, meaningErrors = emptyMap())
+                                }, enabled = !isSaving) { Text("뜻 ${index + 1} 삭제") }
+                            }
+                        }
+                        PartOfSpeechField(
+                            selected = entry.partOfSpeech,
+                            onSelected = { value -> meanings = meanings.mapIndexed { i, old ->
+                                if (i == index) old.copy(partOfSpeech = value) else old
+                            } }
+                        )
+                        OutlinedTextField(
+                            value = entry.meaning,
+                            onValueChange = { value ->
+                                meanings = meanings.mapIndexed { i, old -> if (i == index) old.copy(meaning = value) else old }
+                                validation = validation.copy(meaningError = null, meaningErrors = validation.meaningErrors - index)
+                            },
+                            modifier = Modifier.fillMaxWidth().then(if (index == 0) Modifier.focusRequester(meaningFocusRequester) else Modifier),
+                            label = { Text("뜻 ${index + 1} 입력") },
+                            placeholder = { Text("예: 회복력이 강한") },
+                            supportingText = validation.meaningErrors[index]?.let { error -> { Text(error) } },
+                            isError = validation.meaningErrors.containsKey(index),
+                            enabled = !isSaving,
+                            minLines = 1,
+                            maxLines = 4,
+                            keyboardOptions = KeyboardOptions(hintLocales = KoreanInputLocales),
+                            shape = MaterialTheme.shapes.medium
+                        )
+                        if (entry.meaning.contains(',') || entry.meaning.contains('，')) {
+                            TextButton(
+                                onClick = { meanings = splitMeaningEntries(meanings, index) },
+                                enabled = !isSaving && splitMeaningEntries(meanings, index) != meanings
+                            ) { Text("쉼표로 뜻 나누기") }
+                        }
+                    }
+                }
+                OutlinedButton(
+                    onClick = { meanings = meanings + WordMeaning() },
+                    enabled = !isSaving && meanings.size < MAX_MEANINGS,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("뜻 추가 (${meanings.size}/$MAX_MEANINGS)") }
+                validation.meaningError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.medium)) {
@@ -340,8 +371,9 @@ fun WordEditorScreen(
                     onClick = {
                         val draft = WordDraft(
                             word = word,
-                            meaning = meaning,
-                            partOfSpeech = partOfSpeech,
+                            meaning = meanings.first().meaning,
+                            partOfSpeech = meanings.first().partOfSpeech,
+                            meanings = meanings,
                             example = example,
                             note = note,
                             synonyms = synonyms.lines(),
@@ -357,8 +389,7 @@ fun WordEditorScreen(
                             onSave(draft.normalized()) {
                                 if (existingWord == null) {
                                     word = ""
-                                    meaning = ""
-                                    partOfSpeech = null
+                                    meanings = listOf(WordMeaning())
                                     example = ""
                                     note = ""
                                     synonyms = ""
@@ -604,3 +635,8 @@ private fun EditorTopBar(
         }
     }
 }
+
+private val MeaningListSaver = listSaver<List<WordMeaning>, String>(
+    save = { entries -> entries.flatMap { listOf(it.meaning, it.partOfSpeech?.storageValue.orEmpty()) } },
+    restore = { values -> values.chunked(2).map { WordMeaning(it[0], PartOfSpeech.fromStorageValue(it[1])) } }
+)

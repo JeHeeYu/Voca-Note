@@ -86,7 +86,7 @@ class ReviewEngineTest {
 
         assertEquals(source.word, question.prompt)
         assertEquals(source.meaning, question.answer)
-        assertEquals(source.partOfSpeech, question.partOfSpeech)
+        assertEquals(source.partOfSpeech, question.meanings.single().partOfSpeech)
         assertEquals(source.note, question.note)
         assertEquals(source.synonyms, question.synonyms)
         assertEquals(source.antonyms, question.antonyms)

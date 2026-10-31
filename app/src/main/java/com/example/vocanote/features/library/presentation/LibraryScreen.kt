@@ -45,6 +45,8 @@ import com.example.vocanote.core.designsystem.component.EmptyState
 import com.example.vocanote.core.designsystem.component.LoadingState
 import com.example.vocanote.core.designsystem.component.PageHeader
 import com.example.vocanote.core.model.SavedWord
+import com.example.vocanote.core.model.meaningSummary
+import com.example.vocanote.core.model.wordMeanings
 import com.example.vocanote.core.model.isDueForReview
 import com.example.vocanote.core.model.needsMistakePractice
 import com.example.vocanote.core.speech.rememberWordSpeaker
@@ -78,11 +80,11 @@ fun LibraryScreen(
         words.asSequence()
             .filter { word ->
                 query.isBlank() || word.word.contains(query, ignoreCase = true) ||
-                    word.meaning.contains(query, ignoreCase = true) ||
+                    word.meaningSummary.contains(query, ignoreCase = true) ||
                     word.example.contains(query, ignoreCase = true) ||
                     word.partOfSpeech?.label?.contains(query, ignoreCase = true) == true ||
                     word.partOfSpeech?.abbreviation?.contains(query, ignoreCase = true) == true ||
-                    word.partOfSpeech?.storageValue?.contains(query, ignoreCase = true) == true ||
+                    word.wordMeanings.any { it.partOfSpeech?.storageValue?.contains(query, ignoreCase = true) == true } ||
                     word.synonyms.any { it.contains(query, ignoreCase = true) } ||
                     word.antonyms.any { it.contains(query, ignoreCase = true) } ||
                     word.derivatives.any { it.contains(query, ignoreCase = true) } ||
@@ -239,7 +241,7 @@ private fun WordRow(
                     )
                 }
                 Text(
-                    text = word.meaning,
+                    text = word.meaningSummary,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,

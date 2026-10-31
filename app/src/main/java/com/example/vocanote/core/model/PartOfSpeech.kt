@@ -12,7 +12,11 @@ enum class PartOfSpeech(
     Adverb("adverb", "부사", "adv"),
     Preposition("preposition", "전치사", "prep"),
     Conjunction("conjunction", "접속사", "conj"),
-    Interjection("interjection", "감탄사", "interj");
+    Interjection("interjection", "감탄사", "interj"),
+    Phrase("phrase", "구", "phr"),
+    PhrasalVerb("phrasal_verb", "구동사", "phr v"),
+    Idiom("idiom", "관용구", "idiom"),
+    Abbreviation("abbreviation", "약어", "abbr");
 
     val displayLabel: String
         get() = "$label ($abbreviation)"

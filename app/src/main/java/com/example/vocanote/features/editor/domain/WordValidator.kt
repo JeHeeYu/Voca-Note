@@ -2,10 +2,12 @@ package com.example.vocanote.features.editor.domain
 
 import com.example.vocanote.core.model.SavedWord
 import com.example.vocanote.core.model.WordDraft
+import com.example.vocanote.core.model.MAX_MEANINGS
 
 data class WordValidationResult(
     val wordError: String? = null,
     val meaningError: String? = null,
+    val meaningErrors: Map<Int, String> = emptyMap(),
     val exampleError: String? = null,
     val noteError: String? = null,
     val synonymsError: String? = null,
@@ -25,7 +27,7 @@ data class WordValidationResult(
             derivativesError,
             confusableWordsError,
             collocationsError
-        ).all { it == null }
+        ).all { it == null } && meaningErrors.isEmpty()
 }
 
 fun validateWordDraft(
@@ -46,10 +48,18 @@ fun validateWordDraft(
             else -> null
         },
         meaningError = when {
-            clean.meaning.isBlank() -> "뜻을 입력해 주세요."
-            clean.meaning.length > 300 -> "뜻은 300자 이내로 입력해 주세요."
+            clean.meanings.size > MAX_MEANINGS -> "뜻은 최대 ${MAX_MEANINGS}개까지 입력할 수 있어요."
+            clean.meanings.any { it.meaning.isBlank() } -> "빈 뜻을 입력하거나 삭제해 주세요."
+            clean.meanings.any { it.meaning.length > 300 } -> "뜻은 각각 300자 이내로 입력해 주세요."
             else -> null
         },
+        meaningErrors = clean.meanings.mapIndexedNotNull { index, entry ->
+            when {
+                entry.meaning.isBlank() -> index to "뜻을 입력해 주세요."
+                entry.meaning.length > 300 -> index to "뜻은 300자 이내로 입력해 주세요."
+                else -> null
+            }
+        }.toMap(),
         exampleError = clean.example.takeIf { it.length > 500 }
             ?.let { "예문은 500자 이내로 입력해 주세요." },
         noteError = clean.note.takeIf { it.length > 1000 }

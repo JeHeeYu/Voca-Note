@@ -19,17 +19,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.vocanote.core.model.PartOfSpeech
 import com.example.vocanote.core.model.ReviewSettings
 import com.example.vocanote.core.model.SavedWord
+import com.example.vocanote.core.model.WordMeaning
 import com.example.vocanote.core.model.StudyStats
 import com.example.vocanote.features.editor.presentation.WordEditorScreen
 import com.example.vocanote.features.home.presentation.HomeScreen
 import com.example.vocanote.features.library.presentation.LibraryScreen
 import com.example.vocanote.features.review.presentation.ReviewScreen
+import com.example.vocanote.features.review.presentation.ReviewSessionViewModel
+import com.example.vocanote.features.review.domain.ReviewPresentation
+import com.example.vocanote.features.review.domain.ReviewScope
+import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.features.settings.presentation.SettingsScreen
 import com.example.vocanote.ui.UserProfile
 import com.example.vocanote.ui.navigation.BottomNavDestination
@@ -77,7 +83,7 @@ private fun Intent.requestedScreen(): String = getStringExtra(SCREEN_EXTRA).orEm
 private fun CatalogScreen(screen: String) {
     val destination = when (screen) {
         "library" -> BottomNavDestination.Library
-        "review" -> BottomNavDestination.Review
+        "review", "worksheet", "worksheet-results" -> BottomNavDestination.Review
         "settings" -> BottomNavDestination.Settings
         "editor", "new-editor" -> null
         else -> BottomNavDestination.Home
@@ -112,10 +118,24 @@ private fun CatalogScreen(screen: String) {
                     onOpenWord = {},
                     modifier = modifier
                 )
-                "review" -> ReviewScreen(
+                "review", "worksheet", "worksheet-results" -> ReviewScreen(
+                    session = remember(screen) {
+                        ReviewSessionViewModel().apply {
+                            if (screen != "review") {
+                                start(sampleWords, ReviewMode.Writing, ReviewPresentation.Batch, ReviewScope.All, 10)
+                                state.questions.forEachIndexed { index, question ->
+                                    if (screen == "worksheet-results" || index < 3) input(question.wordId, if (index == 0) "recall" else question.answer)
+                                }
+                                if (screen == "worksheet-results") {
+                                    checkBatch()
+                                    save { _, _, _, complete -> complete(null) }
+                                }
+                            }
+                        }
+                    },
                     words = sampleWords,
                     settings = sampleSettings,
-                    onSaveSession = { _, _ -> },
+                    onSaveSession = { _, _, _, complete -> complete(null) },
                     onAddWord = {},
                     modifier = modifier
                 )
@@ -123,7 +143,7 @@ private fun CatalogScreen(screen: String) {
                     user = sampleUser,
                     settings = sampleSettings,
                     isSaving = false,
-                    appVersion = "v1.0",
+                    appVersion = "v1.1.0",
                     onUpdateSettings = {},
                     onSignOut = {},
                     modifier = modifier
@@ -163,8 +183,8 @@ private fun CatalogScreen(screen: String) {
 }
 
 private val sampleUser = UserProfile(
-    name = "유제희",
-    email = "sees1234558@gmail.com",
+    name = "Voca 학습자",
+    email = "learner@example.com",
     photoUrl = null
 )
 
@@ -183,6 +203,10 @@ private val sampleStats = StudyStats(
 private val now: Instant = Instant.now()
 
 private val sampleWords = listOf(
+    sampleWord("record", "기록", PartOfSpeech.Noun, correct = 6, incorrect = 1).copy(
+        meanings = listOf(WordMeaning("기록, 음반", PartOfSpeech.Noun), WordMeaning("기록하다", PartOfSpeech.Verb)),
+        example = "Please record your ideas.", note = "명사와 동사로 모두 사용할 수 있어요."
+    ),
     sampleWord("resilient", "회복력이 강한, 탄력 있는", PartOfSpeech.Adjective, correct = 6, incorrect = 1),
     sampleWord("subtle", "미묘한, 감지하기 어려운", PartOfSpeech.Adjective, correct = 3, incorrect = 2),
     sampleWord("elaborate", "정교한; 상세히 설명하다", PartOfSpeech.Adjective, correct = 1, incorrect = 2),
@@ -190,7 +214,18 @@ private val sampleWords = listOf(
     sampleWord("vivid", "생생한, 선명한", PartOfSpeech.Adjective),
     sampleWord("coherent", "일관성 있는, 논리적인", PartOfSpeech.Adjective, correct = 2, incorrect = 1),
     sampleWord("pragmatic", "실용적인, 현실적인", PartOfSpeech.Adjective, correct = 1, incorrect = 1),
-    sampleWord("nuance", "미묘한 차이", PartOfSpeech.Noun, correct = 5)
+    sampleWord("nuance", "미묘한 차이", PartOfSpeech.Noun, correct = 5),
+    sampleWord("in time", "제시간에", PartOfSpeech.Phrase),
+    sampleWord("give up", "포기하다", PartOfSpeech.PhrasalVerb),
+    sampleWord("break the ice", "어색함을 깨다", PartOfSpeech.Idiom),
+    sampleWord("ASAP", "가능한 한 빨리", PartOfSpeech.Abbreviation),
+    sampleWord("embrace", "받아들이다", PartOfSpeech.Verb),
+    sampleWord("curiosity", "호기심", PartOfSpeech.Noun),
+    sampleWord("flourish", "번창하다", PartOfSpeech.Verb),
+    sampleWord("tranquil", "고요한", PartOfSpeech.Adjective),
+    sampleWord("endeavor", "노력", PartOfSpeech.Noun),
+    sampleWord("appreciate", "감사하다", PartOfSpeech.Verb),
+    sampleWord("perspective", "관점", PartOfSpeech.Noun)
 )
 
 private fun sampleWord(

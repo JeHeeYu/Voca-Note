@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,13 +42,20 @@ import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.core.model.SavedWord
 import com.example.vocanote.core.model.buildWordInsights
 import com.example.vocanote.core.model.needsMistakePractice
+import com.example.vocanote.core.model.isDueForReview
+import com.example.vocanote.features.review.domain.ReviewScope
+import com.example.vocanote.features.review.domain.ReviewPresentation
+import com.example.vocanote.features.review.domain.eligibleReviewWords
 
 @Composable
 internal fun ReviewSetupContent(
     words: List<SavedWord>,
     selectedMode: ReviewMode,
     selectedScope: ReviewScope,
-    targetCount: Int,
+    targetCount: String,
+    presentation: ReviewPresentation,
+    onCountChange: (String) -> Unit,
+    onPresentationChange: (ReviewPresentation) -> Unit,
     onModeChange: (ReviewMode) -> Unit,
     onScopeChange: (ReviewScope) -> Unit,
     onStart: () -> Unit,
@@ -53,19 +63,17 @@ internal fun ReviewSetupContent(
     modifier: Modifier = Modifier
 ) {
     val insights = remember(words) { buildWordInsights(words) }
-    val validWords = words.count { it.word.isNotBlank() && it.meaning.isNotBlank() }
+    val validWords = eligibleReviewWords(words, words, ReviewMode.Recall).size
     val mistakeCount = words.count { it.needsMistakePractice() }
-    val selectedWordCount = when (selectedScope) {
-        ReviewScope.Due -> insights.dueWords.size
-        ReviewScope.Mistakes -> mistakeCount
-        ReviewScope.All -> validWords
-    }
-    val canStart = when (selectedMode) {
-        ReviewMode.MultipleChoice -> selectedWordCount >= 2
-        ReviewMode.Recall,
-        ReviewMode.Writing,
-        ReviewMode.Listening -> selectedWordCount >= 1
-    }
+    val targets = words.filter { when (selectedScope) {
+        ReviewScope.All -> true
+        ReviewScope.Due -> it.isDueForReview()
+        ReviewScope.Mistakes -> it.needsMistakePractice()
+    } }
+    val selectedWordCount = eligibleReviewWords(words, targets, selectedMode).size
+    val requestedCount = targetCount.toIntOrNull()
+    val validCount = requestedCount != null && requestedCount in 5..30
+    val canStart = validCount && selectedWordCount > 0
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -124,12 +132,17 @@ internal fun ReviewSetupContent(
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
+                Text("진행 방식", style = MaterialTheme.typography.titleLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
+                    FilterChip(selected = presentation == ReviewPresentation.Single, onClick = { onPresentationChange(ReviewPresentation.Single) }, label = { Text("한 문제씩") })
+                    FilterChip(selected = presentation == ReviewPresentation.Batch, onClick = { onPresentationChange(ReviewPresentation.Batch) }, label = { Text("한 번에 풀기") })
+                }
                 Text(
                     text = "연습 방식",
                     modifier = Modifier.padding(bottom = VocaSpacing.xSmall),
                     style = MaterialTheme.typography.titleLarge
                 )
-                ModeOption(
+                if (presentation == ReviewPresentation.Single) ModeOption(
                     selected = selectedMode == ReviewMode.Recall,
                     icon = Icons.Default.Visibility,
                     title = "기억 카드",
@@ -170,7 +183,20 @@ internal fun ReviewSetupContent(
                     modifier = Modifier.padding(VocaSpacing.large),
                     verticalArrangement = Arrangement.spacedBy(VocaSpacing.medium)
                 ) {
-                    ReviewSummaryRow(label = "이번 연습", value = "${minOf(targetCount, selectedWordCount)}개")
+                    OutlinedTextField(
+                        value = targetCount, onValueChange = onCountChange,
+                        label = { Text("이번 문제 수") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = !validCount, supportingText = { Text("5~30 사이의 정수를 입력해 주세요.") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
+                        listOf(5, 10, 20, 30).forEach { count ->
+                            FilterChip(selected = requestedCount == count, onClick = { onCountChange(count.toString()) }, label = { Text("${count}개") })
+                        }
+                    }
+                    Text(if (selectedScope == ReviewScope.All) "모든 단어를 같은 확률로 무작위 출제해요." else "선택한 범위에서 복습 우선순위에 따라 출제해요.", style = MaterialTheme.typography.bodySmall)
+                    ReviewSummaryRow(label = "이번 연습", value = "${if (validCount) minOf(requestedCount!!, selectedWordCount) else 0}개")
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     ReviewSummaryRow(label = "오늘 복습", value = "${insights.dueWords.size}개")
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -194,8 +220,10 @@ internal fun ReviewSetupContent(
             }
             if (!canStart) {
                 Text(
-                    text = if (selectedMode == ReviewMode.MultipleChoice && selectedWordCount == 1) {
-                        "뜻 고르기는 서로 다른 단어가 2개 이상 필요해요."
+                    text = if (!validCount) {
+                        "문제 수를 5~30 사이로 입력해 주세요."
+                    } else if (selectedMode == ReviewMode.MultipleChoice && targets.isNotEmpty()) {
+                        "뜻 고르기는 오답 선택지로 쓸 다른 뜻의 단어가 필요해요."
                     } else {
                         "선택한 범위에 연습할 단어가 없어요."
                     },

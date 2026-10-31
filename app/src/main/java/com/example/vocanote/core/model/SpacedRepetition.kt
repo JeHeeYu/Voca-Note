@@ -31,7 +31,7 @@ fun SavedWord.scheduleAfterReview(
     return ReviewSchedule(
         nextReviewAt = now.plus(Duration.ofDays(nextInterval.toLong())),
         intervalDays = nextInterval,
-        reviewStreak = reviewStreak + 1
+        reviewStreak = (reviewStreak + 1).coerceAtMost(10000)
     )
 }
 

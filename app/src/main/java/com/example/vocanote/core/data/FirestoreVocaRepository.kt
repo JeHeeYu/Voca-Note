@@ -1,6 +1,8 @@
 package com.example.vocanote.core.data
 
-import com.example.vocanote.core.model.PartOfSpeech
+import com.example.vocanote.core.model.toReviewAnswer
+import com.example.vocanote.core.model.decodeMeanings
+import com.example.vocanote.core.model.toStorageMeanings
 import com.example.vocanote.core.model.ReviewAnswer
 import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.core.model.ReviewSettings
@@ -35,14 +37,19 @@ class FirestoreVocaRepository(
 
                 val words = snapshot?.documents.orEmpty().mapNotNull { document ->
                     val word = document.getString("word")?.trim().orEmpty()
-                    val meaning = document.getString("meaning")?.trim().orEmpty()
+                    val meanings = decodeMeanings(
+                        document.get("meanings"), document.getString("meaning").orEmpty(),
+                        document.getString("partOfSpeech")
+                    )
+                    val meaning = meanings.first().meaning
                     if (word.isBlank() || meaning.isBlank()) return@mapNotNull null
 
                     SavedWord(
                         id = document.id,
                         word = word,
                         meaning = meaning,
-                        partOfSpeech = PartOfSpeech.fromStorageValue(document.getString("partOfSpeech")),
+                        partOfSpeech = meanings.first().partOfSpeech,
+                        meanings = meanings,
                         example = document.getString("example")?.trim().orEmpty(),
                         note = document.getString("note")?.trim().orEmpty(),
                         synonyms = document.get("synonyms").toTermList(),
@@ -126,6 +133,7 @@ class FirestoreVocaRepository(
                 mapOf(
                     "word" to clean.word,
                     "meaning" to clean.meaning,
+                    "meanings" to clean.meanings.toStorageMeanings(),
                     "partOfSpeech" to clean.partOfSpeech?.storageValue,
                     "example" to clean.example,
                     "note" to clean.note,
@@ -153,6 +161,7 @@ class FirestoreVocaRepository(
                 mapOf(
                     "word" to clean.word,
                     "meaning" to clean.meaning,
+                    "meanings" to clean.meanings.toStorageMeanings(),
                     "partOfSpeech" to (clean.partOfSpeech?.storageValue ?: FieldValue.delete()),
                     "example" to clean.example,
                     "note" to clean.note,
@@ -193,42 +202,48 @@ class FirestoreVocaRepository(
 
     override suspend fun saveReviewSession(
         userId: String,
+        sessionId: String,
         mode: ReviewMode,
         answers: List<ReviewAnswer>
     ) {
-        if (answers.isEmpty()) return
-
+        require(answers.size in 1..30 && answers.map { it.wordId }.distinct().size == answers.size)
+        val sessionDocument = userReviewSessionsCollection(userId).document(sessionId)
         withTimeout(REQUEST_TIMEOUT_MILLIS) {
-            val batch = firestore.batch()
-            answers.distinctBy { it.wordId }.forEach { answer ->
-                val wordDocument = userWordsCollection(userId).document(answer.wordId)
-                batch.update(
-                    wordDocument,
-                    mapOf(
+            firestore.runTransaction { transaction ->
+                if (transaction.get(sessionDocument).exists()) return@runTransaction null
+                // Read all words before any write, and schedule from their current server state.
+                val documents = answers.map { answer ->
+                    val reference = userWordsCollection(userId).document(answer.wordId)
+                    val document = transaction.get(reference)
+                    check(document.exists()) { "A word was deleted during this session" }
+                    reference to document
+                }
+                answers.zip(documents).forEach { (answer, pair) ->
+                    val (reference, document) = pair
+                    val latest = SavedWord(
+                        id = answer.wordId, word = document.getString("word").orEmpty(), meaning = "",
+                        reviewIntervalDays = document.getLong("reviewIntervalDays")?.toInt() ?: 0,
+                        reviewStreak = document.getLong("reviewStreak")?.toInt() ?: 0
+                    ).toReviewAnswer(answer.isCorrect)
+                    transaction.update(reference, mapOf(
                         (if (answer.isCorrect) "correctCount" else "incorrectCount") to FieldValue.increment(1),
-                        "reviewStreak" to answer.reviewStreak,
-                        "reviewIntervalDays" to answer.reviewIntervalDays,
-                        "nextReviewAt" to Timestamp(answer.nextReviewAt.epochSecond, answer.nextReviewAt.nano),
-                        "isFavorite" to FieldValue.delete(),
+                        "reviewStreak" to latest.reviewStreak,
+                        "reviewIntervalDays" to latest.reviewIntervalDays,
+                        "nextReviewAt" to Timestamp(latest.nextReviewAt.epochSecond, latest.nextReviewAt.nano),
                         "lastReviewedAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                )
-            }
-
-            val sessionDocument = userReviewSessionsCollection(userId).document()
-            batch.set(
-                sessionDocument,
-                mapOf(
+                    ))
+                }
+                transaction.set(sessionDocument, mapOf(
                     "mode" to mode.storageValue,
                     "questionCount" to answers.size,
                     "correctCount" to answers.count { it.isCorrect },
                     "wordIds" to answers.map { it.wordId },
                     "incorrectWordIds" to answers.filterNot { it.isCorrect }.map { it.wordId },
                     "completedAt" to FieldValue.serverTimestamp()
-                )
-            )
-            batch.commit().await()
+                ))
+                null
+            }.await()
         }
     }
 

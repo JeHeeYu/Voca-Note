@@ -40,6 +40,7 @@ interface VocaRepository {
 
     suspend fun saveReviewSession(
         userId: String,
+        sessionId: String,
         mode: ReviewMode,
         answers: List<ReviewAnswer>
     )

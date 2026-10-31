@@ -14,6 +14,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -33,6 +38,7 @@ import com.example.vocanote.features.editor.presentation.WordEditorScreen
 import com.example.vocanote.features.home.presentation.HomeScreen
 import com.example.vocanote.features.library.presentation.LibraryScreen
 import com.example.vocanote.features.review.presentation.ReviewScreen
+import com.example.vocanote.features.review.presentation.SaveReviewSession
 import com.example.vocanote.features.settings.presentation.SettingsScreen
 import com.example.vocanote.ui.VocaNoteUiState
 
@@ -46,7 +52,7 @@ fun VocaNoteNavigation(
     onUpdateWord: (String, WordDraft, () -> Unit) -> Unit,
     onDeleteWord: (String, () -> Unit) -> Unit,
     onUpdateSettings: (ReviewSettings) -> Unit,
-    onSaveReviewSession: (ReviewMode, List<ReviewAnswer>) -> Unit,
+    onSaveReviewSession: SaveReviewSession,
     onSignOut: () -> Unit
 ) {
     val user = state.user ?: return
@@ -57,7 +63,15 @@ fun VocaNoteNavigation(
     val showMainNavigation = selectedDestination != null
     val showAddButton = currentRoute == AppRoute.Home || currentRoute == AppRoute.Library
 
-    fun openMainDestination(destination: BottomNavDestination) {
+    var reviewDirty by remember { mutableStateOf(false) }
+    var reviewSaving by remember { mutableStateOf(false) }
+    var pendingDestination by remember { mutableStateOf<BottomNavDestination?>(null) }
+
+    fun openMainDestination(destination: BottomNavDestination, discard: Boolean = false) {
+        if (currentRoute == AppRoute.Review && destination != BottomNavDestination.Review && reviewDirty && !discard) {
+            pendingDestination = destination
+            return
+        }
         if (destination == BottomNavDestination.Home) {
             navController.popBackStack(AppRoute.Home, inclusive = false)
             return
@@ -78,7 +92,7 @@ fun VocaNoteNavigation(
             if (showMainNavigation) {
                 VocaBottomNavigationBar(
                     selectedDestination = selectedDestination ?: BottomNavDestination.Home,
-                    onDestinationSelected = ::openMainDestination
+                    onDestinationSelected = { openMainDestination(it) }
                 )
             }
         },
@@ -124,6 +138,7 @@ fun VocaNoteNavigation(
                     words = state.words,
                     settings = state.reviewSettings,
                     onSaveSession = onSaveReviewSession,
+                    onSessionStatusChange = { dirty, saving -> reviewDirty = dirty; reviewSaving = saving },
                     onAddWord = { navController.navigate(AppRoute.editor()) }
                 )
             }
@@ -164,4 +179,17 @@ fun VocaNoteNavigation(
             }
         }
     }
+    pendingDestination?.let { destination ->
+        AlertDialog(
+            onDismissRequest = { pendingDestination = null },
+            title = { Text(if (reviewSaving) "학습 기록을 저장하고 있어요" else "연습을 나갈까요?") },
+            text = { Text(if (reviewSaving) "저장이 끝날 때까지 기다려 주세요." else "저장하지 않은 답안과 학습 기록이 사라져요.") },
+            confirmButton = { TextButton(enabled = !reviewSaving, onClick = {
+                pendingDestination = null
+                openMainDestination(destination, discard = true)
+            }) { Text("나가기") } },
+            dismissButton = { TextButton(onClick = { pendingDestination = null }) { Text("계속하기") } }
+        )
+    }
+
 }

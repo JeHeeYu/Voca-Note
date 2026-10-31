@@ -1,5 +1,7 @@
 package com.example.vocanote.features.review.presentation
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,11 +33,12 @@ internal fun ReviewFinishedContent(
     onRestart: () -> Unit,
     onRetryMistakes: (() -> Unit)?,
     onDone: () -> Unit,
+    actionsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val scorePercent = if (totalCount == 0) 0 else correctCount * 100 / totalCount
     Column(
-        modifier = modifier.fillMaxSize().padding(VocaSpacing.xLarge),
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(VocaSpacing.xLarge),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -71,12 +74,13 @@ internal fun ReviewFinishedContent(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+        Button(onClick = onDone, enabled = actionsEnabled, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
             Text("완료")
         }
         if (onRetryMistakes != null) {
             OutlinedButton(
                 onClick = onRetryMistakes,
+                enabled = actionsEnabled,
                 modifier = Modifier.fillMaxWidth().padding(top = VocaSpacing.small),
                 shape = MaterialTheme.shapes.medium
             ) {
@@ -89,6 +93,7 @@ internal fun ReviewFinishedContent(
         } else {
             OutlinedButton(
                 onClick = onRestart,
+                enabled = actionsEnabled,
                 modifier = Modifier.fillMaxWidth().padding(top = VocaSpacing.small),
                 shape = MaterialTheme.shapes.medium
             ) {
