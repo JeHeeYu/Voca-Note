@@ -36,7 +36,7 @@ class LearningFlowTest {
         compose.onNodeWithText("record", useUnmergedTree = true).assertDoesNotExist()
     }
 
-    @Test fun twentyQuestionBatchGradesOnceAndKeepsAnswersAcrossLayouts() {
+    @Test fun twentyQuestionBatchGradesOnceAndKeepsAnswersWhileScrolling() {
         val session = ReviewSessionViewModel()
         session.start(words, ReviewMode.Writing, ReviewPresentation.Batch, ReviewScope.All, 20)
         var saves = 0
@@ -44,9 +44,10 @@ class LearningFlowTest {
             ReviewScreen(words, ReviewSettings(), { _, _, _, complete -> saves++; complete(null) }, {}, session = session)
         } }
         compose.onNodeWithText("1번 답").performTextInput("wrong")
-        compose.onNodeWithText("그리드").performClick()
+        compose.onNodeWithTag("batch_questions").performScrollToIndex(20)
+        compose.onNodeWithText("20번 답").assertExists()
+        compose.onNodeWithTag("batch_questions").performScrollToIndex(0)
         compose.onNodeWithText("1번 답").assertTextContains("wrong")
-        compose.onNodeWithText("리스트").performClick()
         compose.runOnIdle {
             for (question in session.state.questions.drop(1)) session.input(question.wordId, question.answer)
         }

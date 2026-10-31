@@ -9,7 +9,7 @@
   <p>Kotlin · Jetpack Compose · Material 3 · Firebase Auth / Firestore · Android 7.0+</p>
 </div>
 
-앱과 웹에서 같은 Google 계정으로 로그인하면 단어, 뜻별 품사, 학습 설정과 복습 기록을 이어서 사용할 수 있습니다. **현재 버전은 1.1.0**입니다.
+앱과 웹에서 같은 Google 계정으로 로그인하면 단어, 뜻별 품사, 학습 설정과 복습 기록을 이어서 사용할 수 있습니다. **현재 버전은 1.1.1**입니다.
 
 ## 화면
 
@@ -26,7 +26,7 @@
   </tr>
   <tr>
     <td align="center"><img src="docs/screenshots/review.png" width="300" alt="연습 방식과 범위 설정"><br><strong>연습 설정</strong><br>한 문제씩 또는 한 번에, 5~30문제 선택</td>
-    <td align="center"><img src="docs/screenshots/worksheet.png" width="300" alt="여러 문제를 동시에 푸는 일괄 학습"><br><strong>한 번에 풀기</strong><br>리스트·그리드로 답을 입력하고 일괄 채점</td>
+    <td align="center"><img src="docs/screenshots/worksheet.png" width="300" alt="여러 문제를 동시에 푸는 일괄 학습"><br><strong>한 번에 풀기</strong><br>문제를 아래로 이어서 풀고 일괄 채점</td>
   </tr>
   <tr>
     <td align="center"><img src="docs/screenshots/worksheet-results.png" width="300" alt="일괄 채점의 정답과 오답 비교"><br><strong>답안 비교</strong><br>모든 뜻 확인, 오답 재연습, 저장 재시도</td>
@@ -43,7 +43,7 @@
 | 연관 정보 | 예문, 메모, 유의어·반의어·파생어·혼동어·숙어/연어, 기기 TTS |
 | 탐색 | 모든 뜻과 품사·예문·연관어 검색, 복습/오답 필터, 최근/알파벳/학습 우선순 정렬 |
 | 한 문제씩 | 기억 카드·뜻 고르기·직접 쓰기·듣고 쓰기, 정답 확인 후 Enter로 다음 문제 |
-| 한 번에 풀기 | 뜻 고르기·직접 쓰기·듣고 쓰기, 5~30문제, 리스트·그리드, 빈 답 검증, 일괄 채점 |
+| 한 번에 풀기 | 뜻 고르기·직접 쓰기·듣고 쓰기, 5~30문제, 세로로 이어지는 문제, 빈 답 검증, 일괄 채점 |
 | 출제 범위 | 전체는 등록일·정답률·복습일과 무관하게 동일 확률로 출제, 오늘 복습·오답 집중은 복습 우선순위 유지 |
 | 결과 | 전체 답안 다시 보기, 틀린 단어 재연습, 저장 실패 시 답안을 유지해 재시도 |
 | 간격 반복 | 정답 `1일 → 3일 → 이전 간격의 2배(최대 180일)`, 오답 `10분` |
@@ -129,7 +129,7 @@ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w com.example.vocanote.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-기기 UI 테스트는 로그인 없이 테스트용 데이터로 여러 뜻 입력, 연속 추가, Enter 진행, 20문제 일괄 채점, 레이아웃 전환, 저장 실패 재시도를 확인합니다. 테스트할 기기는 잠금을 풀어 두어야 합니다.
+기기 UI 테스트는 로그인 없이 테스트용 데이터로 여러 뜻 입력, 연속 추가, Enter 진행, 20문제 일괄 채점, 스크롤 중 답안 유지, 저장 실패 재시도를 확인합니다. 테스트할 기기는 잠금을 풀어 두어야 합니다.
 
 Debug 전용 UI 카탈로그는 개인 계정과 연결되지 않습니다. Release 빌드에는 포함되지 않습니다.
 

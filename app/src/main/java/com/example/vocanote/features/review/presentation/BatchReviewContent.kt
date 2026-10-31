@@ -2,14 +2,15 @@ package com.example.vocanote.features.review.presentation
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -33,24 +34,21 @@ internal fun BatchReviewContent(
     onExit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var grid by rememberSaveable { mutableStateOf(false) }
     var attempted by remember(state.id) { mutableStateOf(false) }
     val graded = state.phase == ReviewPhase.Graded
     val missing = state.questions.filter { state.inputs[it.wordId].isNullOrBlank() }
     val results = state.answers.associateBy { it.wordId }
-    val listState = rememberLazyGridState()
+    val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val speaker = rememberWordSpeaker()
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(if (grid) 2 else 1),
+    LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize().testTag("batch_questions"),
         contentPadding = PaddingValues(VocaSpacing.large),
-        horizontalArrangement = Arrangement.spacedBy(VocaSpacing.medium),
         verticalArrangement = Arrangement.spacedBy(VocaSpacing.medium)
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
+        item {
             Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("한 번에 풀기", style = MaterialTheme.typography.headlineSmall)
@@ -58,10 +56,6 @@ internal fun BatchReviewContent(
                 }
                 Text(if (graded) "${state.questions.size}문제 중 ${state.answers.count { it.isCorrect }}개 정답"
                     else "${state.questions.size - missing.size}/${state.questions.size}문제 입력 · 모두 풀고 함께 확인하세요")
-                Row(horizontalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
-                    FilterChip(selected = !grid, onClick = { grid = false }, label = { Text("리스트") })
-                    FilterChip(selected = grid, onClick = { grid = true }, label = { Text("그리드") })
-                }
                 if (graded) {
                     ReviewSaveStatus(state, onRetrySave)
                     Button(onClick = onSummary, modifier = Modifier.fillMaxWidth()) { Text("학습 요약 보기") }
