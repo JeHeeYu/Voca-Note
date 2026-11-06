@@ -11,6 +11,40 @@ class LearningGamesTest {
     private val record = SavedWord("record", "record", "기록, 음반", meanings = meanings.map { WordMeaning(it) })
     private val words = listOf("apple", "pear", "grape", "peach", "lemon", "melon", "lime", "plum", "in time").map { SavedWord(it, it, "뜻 $it") }
 
+    @Test fun `balanced parenthetical notes are optional before splitting meanings`() {
+        listOf("(조건을) 충족시키다", "（조건을） 충족시키다", "(조건, 기준/요건을) 충족시키다", "(주로 (조건을)) 충족시키다", "충족(기준을)시키다(동사)").forEach { meaning ->
+            listOf("충족시키다", "충족 시키다", "(조건을) 충족시키다", meaning)
+                .forEach { assertTrue(it, meaningAnswersMatch(it, listOf(meaning))) }
+            listOf("", "(조건을)", "(충족시키다)", "조건", "기준", "충족", "오답")
+                .forEach { assertFalse(it, meaningAnswersMatch(it, listOf(meaning))) }
+        }
+        assertTrue(meaningAnswersMatch("충족시키다, 만족시키다", listOf("(사람을) 만족시키다, (조건을) 충족시키다")))
+        assertFalse(meaningAnswersMatch("충족시키다, 오답", listOf("(조건을) 충족시키다")))
+        assertFalse(meaningAnswersMatch("", listOf("(참고)")))
+        assertFalse(meaningAnswersMatch("(참고)", listOf("(참고)")))
+        assertFalse(meaningAnswersMatch("충족시키다", listOf("충족시키다(조건")))
+        assertTrue(meaningAnswersMatch("충족시키다(조건", listOf("충족시키다(조건")))
+    }
+    @Test fun `omitted notes are graded and saved in single and batch without changing stored meanings`() {
+        for (stored in listOf(emptyList(), listOf(WordMeaning("(조건을) 충족시키다")))) {
+            for (presentation in ReviewPresentation.entries) {
+                val session = ReviewSessionViewModel()
+                val word = SavedWord("fulfill", "fulfill", "(조건을) 충족시키다", meanings = stored)
+                session.start(listOf(word), ReviewMode.MeaningWriting, presentation, ReviewScope.All, 5)
+                session.input(word.id, "충족시키다")
+                if (presentation == ReviewPresentation.Single) session.check() else assertTrue(session.checkBatch())
+                assertTrue(session.state.answers.single().isCorrect)
+                assertEquals("(조건을) 충족시키다", session.state.questions.single().answer)
+                assertEquals(word, session.state.sourceWords.getValue(word.id))
+                session.save { _, mode, answers, complete ->
+                    assertEquals(ReviewMode.MeaningWriting, mode)
+                    assertTrue(answers.single().isCorrect)
+                    complete(null)
+                }
+                assertTrue(session.state.saved)
+            }
+        }
+    }
     @Test fun `one or more registered meanings match in any order across stored senses`() {
         for (stored in listOf(listOf("보상금, 보상"), listOf("보상금", "보상"))) {
             listOf("보상", "보상금", "보상, 보상금", "보 상 금, 보 상", "보상；보상금", "보상／보상금", "보상\n보상금", "보상, 보상, 보상금, ")

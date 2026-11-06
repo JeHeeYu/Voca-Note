@@ -125,13 +125,33 @@ fun gradeBatch(questions: List<ReviewQuestion>, inputs: Map<String, String>, mod
 
 fun normalizeMeaningAnswer(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFKC)
     .filterNot { it.isWhitespace() }.lowercase(Locale.ROOT)
+private fun withoutMeaningNotes(value: String): String {
+    val text = Normalizer.normalize(value, Normalizer.Form.NFKC)
+    val result = StringBuilder()
+    var depth = 0
+    var start = 0
+    text.forEachIndexed { index, char ->
+        when {
+            char == '(' -> {
+                if (depth == 0) start = index
+                depth++
+            }
+            char == ')' && depth > 0 -> depth--
+            depth == 0 -> result.append(char)
+        }
+    }
+    // An unmatched opening parenthesis must not hide the rest of an answer.
+    if (depth > 0) result.append(text.substring(start))
+    return result.toString()
+}
 private fun meaningAlternatives(value: String): List<String> = Normalizer.normalize(value, Normalizer.Form.NFKC)
     .split(Regex("[,;/\\n]")).map(::normalizeMeaningAnswer).filter { it.isNotEmpty() }
 fun meaningAnswersMatch(input: String, meanings: List<String>): Boolean {
-    val answers = meaningAlternatives(input)
-    val accepted = meanings.flatMap { listOf(normalizeMeaningAnswer(it)) + meaningAlternatives(it) }
+    val answer = withoutMeaningNotes(input)
+    val answers = meaningAlternatives(answer)
+    val accepted = meanings.map(::withoutMeaningNotes).flatMap { listOf(normalizeMeaningAnswer(it)) + meaningAlternatives(it) }
         .filter { it.isNotEmpty() }.toSet()
-    return normalizeMeaningAnswer(input) in accepted ||
+    return normalizeMeaningAnswer(answer) in accepted ||
         (answers.isNotEmpty() && answers.all { it in accepted })
 }
 fun questionMatches(input: String, question: ReviewQuestion, mode: ReviewMode): Boolean = when (mode) {
