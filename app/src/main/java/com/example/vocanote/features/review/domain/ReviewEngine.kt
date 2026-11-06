@@ -125,11 +125,14 @@ fun gradeBatch(questions: List<ReviewQuestion>, inputs: Map<String, String>, mod
 
 fun normalizeMeaningAnswer(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFKC)
     .filterNot { it.isWhitespace() }.lowercase(Locale.ROOT)
+private fun meaningAlternatives(value: String): List<String> = Normalizer.normalize(value, Normalizer.Form.NFKC)
+    .split(Regex("[,;/\\n]")).map(::normalizeMeaningAnswer).filter { it.isNotEmpty() }
 fun meaningAnswersMatch(input: String, meanings: List<String>): Boolean {
-    val value = normalizeMeaningAnswer(input)
-    return value.isNotEmpty() && meanings.any { meaning ->
-        (listOf(meaning) + meaning.split(Regex("[,，;；/\\n]"))).any { normalizeMeaningAnswer(it) == value }
-    }
+    val answers = meaningAlternatives(input)
+    val accepted = meanings.flatMap { listOf(normalizeMeaningAnswer(it)) + meaningAlternatives(it) }
+        .filter { it.isNotEmpty() }.toSet()
+    return normalizeMeaningAnswer(input) in accepted ||
+        (answers.isNotEmpty() && answers.all { it in accepted })
 }
 fun questionMatches(input: String, question: ReviewQuestion, mode: ReviewMode): Boolean = when (mode) {
     ReviewMode.MeaningWriting -> meaningAnswersMatch(input, question.meanings.map { it.meaning })

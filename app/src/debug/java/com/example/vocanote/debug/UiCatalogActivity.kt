@@ -148,7 +148,7 @@ private fun CatalogScreen(screen: String) {
                     user = sampleUser,
                     settings = sampleSettings,
                     isSaving = false,
-                    appVersion = "v1.2.0",
+                    appVersion = "v1.2.1",
                     onUpdateSettings = {},
                     onSignOut = {},
                     modifier = modifier

@@ -11,8 +11,50 @@ class LearningGamesTest {
     private val record = SavedWord("record", "record", "기록, 음반", meanings = meanings.map { WordMeaning(it) })
     private val words = listOf("apple", "pear", "grape", "peach", "lemon", "melon", "lime", "plum", "in time").map { SavedWord(it, it, "뜻 $it") }
 
+    @Test fun `one or more registered meanings match in any order across stored senses`() {
+        for (stored in listOf(listOf("보상금, 보상"), listOf("보상금", "보상"))) {
+            listOf("보상", "보상금", "보상, 보상금", "보 상 금, 보 상", "보상；보상금", "보상／보상금", "보상\n보상금", "보상, 보상, 보상금, ")
+                .forEach { assertTrue(it, meaningAnswersMatch(it, stored)) }
+            listOf(", ; /\n", "보", "보상, 오답", "보상금액", "보상보상금")
+                .forEach { assertFalse(it, meaningAnswersMatch(it, stored)) }
+        }
+        assertTrue(meaningAnswersMatch("보상, 보상금", listOf("보상금, 보상, 배상")))
+        assertFalse(meaningAnswersMatch("보상, 보상금", emptyList()))
+    }
+    @Test fun `reordered meaning answers are graded and saved correctly in single and batch sessions`() {
+        for (stored in listOf(emptyList(), listOf(WordMeaning("보상금"), WordMeaning("보상")))) {
+            for (presentation in ReviewPresentation.entries) {
+                val session = ReviewSessionViewModel()
+                val word = SavedWord("compensation", "compensation", "보상금, 보상", meanings = stored)
+                session.start(listOf(word), ReviewMode.MeaningWriting, presentation, ReviewScope.All, 5)
+                session.input(word.id, "보 상, 보 상 금")
+                if (presentation == ReviewPresentation.Single) {
+                    session.check()
+                    session.advance()
+                    assertEquals(ReviewPhase.Finished, session.state.phase)
+                } else {
+                    assertTrue(session.checkBatch())
+                    assertEquals(ReviewPhase.Graded, session.state.phase)
+                }
+                assertTrue(session.state.answers.single().isCorrect)
+                var calls = 0
+                val save: SaveReviewSession = { _, mode, answers, complete ->
+                    calls++
+                    assertEquals(ReviewMode.MeaningWriting, mode)
+                    assertTrue(answers.single().isCorrect)
+                    complete(null)
+                }
+                session.save(save)
+                session.save(save)
+                assertEquals(1, calls)
+                assertTrue(session.state.saved)
+            }
+        }
+    }
     @Test fun `any meaning accepts whitespace and normalized Hangul but not partial or unrelated answers`() {
-        listOf("기 록", "음\t반", "기록 하다", "잘\u00a0자라다", "번창하다", "시각", "기록,음반", Normalizer.normalize("기록하다", Normalizer.Form.NFD)).forEach { assertTrue(it, meaningAnswersMatch(it, meanings)) }
+        listOf("기 록", "음\t반", "기록 하다", "잘\u00a0자라다", "잘\n자라다", "번창하다", "시각", "기록,음반", Normalizer.normalize("기록하다", Normalizer.Form.NFD)).forEach { assertTrue(it, meaningAnswersMatch(it, meanings)) }
+        assertTrue(meaningAnswersMatch("잘 자라다", listOf("잘\n자라다")))
+        assertFalse(meaningAnswersMatch("", listOf(" ", ",")))
         listOf("", " \n ", "기록하", "잘", "오답, 음반", "기록합니다").forEach { assertFalse(it, meaningAnswersMatch(it, meanings)) }
     }
     @Test fun `single and batch share meaning grading including legacy flat records`() {
