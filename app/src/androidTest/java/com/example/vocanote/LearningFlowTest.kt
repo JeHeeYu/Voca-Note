@@ -17,6 +17,46 @@ class LearningFlowTest {
     @get:Rule val compose = createComposeRule()
     private val words = (1..20).map { SavedWord("$it", "word $it", "뜻 $it") }
 
+    @Test fun koreanMeaningAcceptsOneAlternativeAndSaves() {
+        val words = listOf(SavedWord("record", "record", "기록", meanings = listOf(WordMeaning("기록, 음반", PartOfSpeech.Noun), WordMeaning("기록하다", PartOfSpeech.Verb))))
+        val session = ReviewSessionViewModel()
+        session.start(words, ReviewMode.MeaningWriting, ReviewPresentation.Single, ReviewScope.All, 1)
+        var saves = 0
+        compose.setContent { MaterialTheme { ReviewScreen(words, ReviewSettings(), { _, mode, answers, complete ->
+            assertEquals(ReviewMode.MeaningWriting, mode); assertTrue(answers.single().isCorrect); saves++; complete(null)
+        }, {}, session = session) } }
+        compose.onNodeWithText("record").assertExists()
+        compose.onNodeWithText("정답", substring = false).performTextInput("음 반")
+        compose.onNodeWithText("정답", substring = false).performImeAction()
+        compose.onNodeWithText("결과 보기").performScrollTo().performClick()
+        compose.onNodeWithText("학습 기록과 다음 복습 시간을 저장했어요.").assertExists()
+        compose.runOnIdle { assertEquals(1, saves) }
+    }
+
+    @Test fun crosswordFillsSharedCellsAndSavesOnce() {
+        val words = listOf("apple", "pear", "grape", "peach", "lemon", "melon").map { SavedWord(it, it, "힌트 $it") }
+        val session = ReviewSessionViewModel()
+        session.start(words, ReviewMode.Crossword, ReviewPresentation.Single, ReviewScope.All, 5)
+        var saves = 0
+        compose.setContent { MaterialTheme { ReviewScreen(words, ReviewSettings(), { _, mode, answers, complete ->
+            assertEquals(ReviewMode.Crossword, mode); assertTrue(answers.all { it.isCorrect }); saves++; complete(null)
+        }, {}, session = session) } }
+        compose.onNodeWithText("전체 정답 확인").performClick()
+        compose.onNodeWithText("아직 비어 있는 칸이 있어요. 모든 낱말을 채워 주세요.").assertExists()
+        for (entry in session.state.crossword!!.entries) {
+            compose.onNodeWithTag("crossword_content").performScrollToNode(hasTestTag("crossword_clue_${entry.wordId}"))
+            compose.onNodeWithTag("crossword_clue_${entry.wordId}").performClick()
+            compose.onNodeWithTag("crossword_answer").performScrollTo().performTextReplacement(entry.answer)
+            compose.onNodeWithText("낱말 채우기").performScrollTo().performClick()
+        }
+        compose.onNodeWithTag("crossword_content").performScrollToIndex(0)
+        compose.onNodeWithText("전체 정답 확인").performClick()
+        compose.onNodeWithText("학습 요약 보기").performClick()
+        compose.onNodeWithText("전체 답안 다시 보기").performClick()
+        compose.onNodeWithText("학습 기록과 다음 복습 시간을 저장했어요.").assertExists()
+        compose.runOnIdle { assertEquals(1, saves); assertTrue(session.state.answers.all { it.isCorrect }) }
+    }
+
     @Test fun editAllMeaningsAndKeepNewWordEntryOpen() {
         var saved: WordDraft? = null
         var left = false

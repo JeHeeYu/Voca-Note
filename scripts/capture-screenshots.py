@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--serial', required=True)
-parser.add_argument('--screens', nargs='+', default=['home', 'library', 'settings', 'editor', 'review', 'part-of-speech', 'worksheet', 'worksheet-results'])
+parser.add_argument('--screens', nargs='+', default=['home', 'library', 'settings', 'editor', 'review', 'part-of-speech', 'worksheet', 'worksheet-results', 'meaning-quiz', 'crossword'])
 args = parser.parse_args()
 root = pathlib.Path(__file__).resolve().parents[1]
 output = root / 'docs/screenshots'

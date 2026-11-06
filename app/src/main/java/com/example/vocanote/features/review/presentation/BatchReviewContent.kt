@@ -56,6 +56,7 @@ internal fun BatchReviewContent(
                 }
                 Text(if (graded) "${state.questions.size}문제 중 ${state.answers.count { it.isCorrect }}개 정답"
                     else "${state.questions.size - missing.size}/${state.questions.size}문제 입력 · 모두 풀고 함께 확인하세요")
+                if (state.mode == ReviewMode.MeaningWriting) Text("띄어쓰기는 무시해요. 등록된 뜻 중 하나만 맞히면 정답이에요.", style = MaterialTheme.typography.bodySmall)
                 if (graded) {
                     ReviewSaveStatus(state, onRetrySave)
                     Button(onClick = onSummary, modifier = Modifier.fillMaxWidth()) { Text("학습 요약 보기") }
@@ -119,8 +120,9 @@ private fun BatchQuestionCard(
                 OutlinedTextField(
                     value = value, onValueChange = onValueChange, readOnly = graded,
                     label = { Text("${index + 1}번 답") }, singleLine = true,
+                    placeholder = { Text(if (mode == ReviewMode.MeaningWriting) "한글 뜻 하나 입력" else "영어 단어 입력") },
                     isError = !graded && missing, modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = if (mode == ReviewMode.MeaningWriting) KeyboardType.Text else KeyboardType.Ascii, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { keyboard?.hide() })
                 )
             }

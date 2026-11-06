@@ -49,10 +49,14 @@ fun ReviewScreen(
                     presentation = it
                     if (it == ReviewPresentation.Batch && mode == ReviewMode.Recall) mode = ReviewMode.Writing
                 },
-                onStart = { start() }, onAddWord = onAddWord, modifier = content
+                onStart = { start() }, onAddWord = onAddWord, modifier = content, startError = state.startError
             )
             ReviewPhase.Question, ReviewPhase.Graded -> {
-                if (state.presentation == ReviewPresentation.Batch) {
+                if (state.mode == ReviewMode.Crossword) {
+                    CrosswordContent(state, session::fillCrossword,
+                        { if (session.checkBatch()) session.save(onSaveSession) },
+                        { session.save(onSaveSession) }, session::showSummary, ::exit, content)
+                } else if (state.presentation == ReviewPresentation.Batch) {
                     BatchReviewContent(
                         state = state, onInput = session::input,
                         onCheck = { if (session.checkBatch()) session.save(onSaveSession) },
@@ -92,7 +96,13 @@ fun ReviewScreen(
                     actionsEnabled = state.saved,
                     onRestart = { start(state.questions.map { it.wordId }.toSet()) }, onDone = session::reset,
                     onRetryMistakes = state.answers.filterNot { it.isCorrect }.map { it.wordId }.filter { id -> words.any { it.id == id } }.toSet()
-                        .takeIf { it.isNotEmpty() }?.let { ids -> { start(ids) } },
+                        .takeIf { it.isNotEmpty() }?.let { ids -> {
+                            if (state.mode == ReviewMode.Crossword) {
+                                mode = ReviewMode.Writing
+                                presentation = ReviewPresentation.Batch
+                                session.start(words, ReviewMode.Writing, ReviewPresentation.Batch, scope, ids.size, ids)
+                            } else start(ids)
+                        } },
                     modifier = Modifier.weight(1f)
                 )
             }

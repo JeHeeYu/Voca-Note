@@ -60,7 +60,8 @@ internal fun ReviewSetupContent(
     onScopeChange: (ReviewScope) -> Unit,
     onStart: () -> Unit,
     onAddWord: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startError: String? = null
 ) {
     val insights = remember(words) { buildWordInsights(words) }
     val validWords = eligibleReviewWords(words, words, ReviewMode.Recall).size
@@ -73,7 +74,7 @@ internal fun ReviewSetupContent(
     val selectedWordCount = eligibleReviewWords(words, targets, selectedMode).size
     val requestedCount = targetCount.toIntOrNull()
     val validCount = requestedCount != null && requestedCount in 5..30
-    val canStart = validCount && selectedWordCount > 0
+    val canStart = validCount && selectedWordCount >= if (selectedMode == ReviewMode.Crossword) 2 else 1
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -132,10 +133,12 @@ internal fun ReviewSetupContent(
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
+                if (selectedMode != ReviewMode.Crossword) {
                 Text("진행 방식", style = MaterialTheme.typography.titleLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(VocaSpacing.small)) {
                     FilterChip(selected = presentation == ReviewPresentation.Single, onClick = { onPresentationChange(ReviewPresentation.Single) }, label = { Text("한 문제씩") })
                     FilterChip(selected = presentation == ReviewPresentation.Batch, onClick = { onPresentationChange(ReviewPresentation.Batch) }, label = { Text("한 번에 풀기") })
+                }
                 }
                 Text(
                     text = "연습 방식",
@@ -162,6 +165,20 @@ internal fun ReviewSetupContent(
                     title = "직접 쓰기",
                     description = "뜻과 빈칸 예문을 보고 영어 단어 입력",
                     onClick = { onModeChange(ReviewMode.Writing) }
+                )
+                ModeOption(
+                    selected = selectedMode == ReviewMode.MeaningWriting,
+                    icon = Icons.Default.Edit,
+                    title = "한글 뜻 맞히기",
+                    description = "영어를 보고 뜻 하나 입력 · 띄어쓰기는 자유롭게",
+                    onClick = { onModeChange(ReviewMode.MeaningWriting) }
+                )
+                ModeOption(
+                    selected = selectedMode == ReviewMode.Crossword,
+                    icon = Icons.Default.Quiz,
+                    title = "가로세로 낱말",
+                    description = "한글 힌트로 교차하는 영어 낱말 채우기",
+                    onClick = { onModeChange(ReviewMode.Crossword) }
                 )
                 ModeOption(
                     selected = selectedMode == ReviewMode.Listening,
@@ -205,6 +222,8 @@ internal fun ReviewSetupContent(
             }
         }
         item {
+            if (selectedMode == ReviewMode.Crossword) Text("영문 2~18글자로 연결 가능한 단어만 출제해요. 공백·하이픈·아포스트로피는 칸에서 생략하며, 실제 문제 수는 줄어들 수 있어요.", modifier = Modifier.padding(bottom = VocaSpacing.medium), style = MaterialTheme.typography.bodySmall)
+            if (startError != null) Text(startError, color = MaterialTheme.colorScheme.error)
             Button(
                 onClick = onStart,
                 enabled = canStart,

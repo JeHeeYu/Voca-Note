@@ -33,6 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
@@ -48,7 +51,7 @@ import com.example.vocanote.core.designsystem.VocaSpacing
 import com.example.vocanote.core.model.ReviewMode
 import com.example.vocanote.core.speech.rememberWordSpeaker
 import com.example.vocanote.features.review.domain.ReviewQuestion
-import com.example.vocanote.features.review.domain.answersMatch
+import com.example.vocanote.features.review.domain.questionMatches
 import com.example.vocanote.ui.theme.AccentCoralLight
 import com.example.vocanote.ui.theme.BrandLight
 
@@ -74,7 +77,8 @@ internal fun ReviewQuestionContent(
     onNext: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val writingIsCorrect = answersMatch(writingAnswer, question.answer)
+    var textFieldValue by remember(question.wordId) { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(writingAnswer)) }
+    val writingIsCorrect = questionMatches(writingAnswer, question, mode)
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
     val speaker = rememberWordSpeaker()
@@ -87,8 +91,8 @@ internal fun ReviewQuestionContent(
 
     LazyColumn(
         modifier = modifier.fillMaxSize().onPreviewKeyEvent { event ->
-            if ((event.key == Key.Enter || event.key == Key.NumPadEnter) &&
-                (isAnswerChecked || mode == ReviewMode.Writing || mode == ReviewMode.Listening)) {
+            if (textFieldValue.composition == null && (event.key == Key.Enter || event.key == Key.NumPadEnter) &&
+                (isAnswerChecked || mode == ReviewMode.Writing || mode == ReviewMode.Listening || mode == ReviewMode.MeaningWriting)) {
                 if (event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount == 0) {
                     if (isAnswerChecked) onNext() else if (writingAnswer.isNotBlank()) onCheckWriting()
                 }
@@ -117,6 +121,8 @@ internal fun ReviewQuestionContent(
                             ReviewMode.MultipleChoice -> "알맞은 뜻을 고르세요"
                             ReviewMode.Writing -> "영어 단어를 입력하세요"
                             ReviewMode.Listening -> "발음을 듣고 철자를 입력하세요"
+                            ReviewMode.MeaningWriting -> "띄어쓰기 없이도, 등록된 뜻 하나만 맞히면 정답"
+                            ReviewMode.Crossword -> "가로세로 낱말을 채워보세요"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -193,21 +199,21 @@ internal fun ReviewQuestionContent(
         } else {
             item {
                 OutlinedTextField(
-                    value = writingAnswer,
-                    onValueChange = { if (!isAnswerChecked) onWritingAnswerChange(it) },
+                    value = textFieldValue.copy(text = writingAnswer),
+                    onValueChange = { if (!isAnswerChecked) { textFieldValue = it; onWritingAnswerChange(it.text) } },
                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                     label = { Text("정답") },
                     placeholder = {
-                        Text(if (mode == ReviewMode.Listening) "들은 단어 입력" else "영어 단어 입력")
+                        Text(if (mode == ReviewMode.MeaningWriting) "한글 뜻 하나 입력" else if (mode == ReviewMode.Listening) "들은 단어 입력" else "영어 단어 입력")
                     },
                     readOnly = isAnswerChecked,
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
                     keyboardOptions = KeyboardOptions(
                         autoCorrectEnabled = false,
-                        keyboardType = KeyboardType.Ascii,
+                        keyboardType = if (mode == ReviewMode.MeaningWriting) KeyboardType.Text else KeyboardType.Ascii,
                         imeAction = ImeAction.Done,
-                        hintLocales = EnglishAnswerLocales
+                        hintLocales = if (mode == ReviewMode.MeaningWriting) androidx.compose.ui.text.intl.LocaleList("ko") else EnglishAnswerLocales
                     ),
                     keyboardActions = KeyboardActions(onDone = {
                         keyboardController?.hide()
@@ -237,7 +243,7 @@ internal fun ReviewQuestionContent(
                 ReviewMode.Recall -> recallResult == true
                 ReviewMode.MultipleChoice -> selectedOption == question.answer
                 ReviewMode.Writing,
-                ReviewMode.Listening -> writingIsCorrect
+                ReviewMode.Listening, ReviewMode.MeaningWriting, ReviewMode.Crossword -> writingIsCorrect
             }
             item {
                 FeedbackPanel(

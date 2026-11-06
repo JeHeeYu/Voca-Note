@@ -23,7 +23,9 @@ enum class ReviewMode(val storageValue: String) {
     Recall("recall"),
     MultipleChoice("multiple_choice"),
     Writing("writing"),
-    Listening("listening")
+    Listening("listening"),
+    MeaningWriting("meaning_writing"),
+    Crossword("crossword")
 }
 
 data class ReviewAnswer(

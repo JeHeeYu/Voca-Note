@@ -7,6 +7,7 @@ import com.example.vocanote.core.model.isDueForReview
 import com.example.vocanote.core.model.WordMeaning
 import com.example.vocanote.core.model.wordMeanings
 import java.time.Instant
+import java.text.Normalizer
 import java.util.Locale
 import kotlin.random.Random
 
@@ -40,6 +41,7 @@ private fun distractorsFor(word: SavedWord, pool: List<SavedWord>): List<String>
 
 fun eligibleReviewWords(words: List<SavedWord>, targets: List<SavedWord>, mode: ReviewMode): List<SavedWord> =
     targets.filter { word -> word.word.isNotBlank() && word.wordMeanings.any { it.meaning.isNotBlank() } &&
+        (mode != ReviewMode.Crossword || crosswordAnswer(word.word).isNotBlank()) &&
         (mode != ReviewMode.MultipleChoice || distractorsFor(word, words).isNotEmpty()) }
 
 fun buildReviewQuestions(
@@ -61,10 +63,10 @@ fun buildReviewQuestions(
         val meanings = current.wordMeanings.filter { it.meaning.isNotBlank() }
         val selected = meanings.random(random)
         val answer = when (mode) {
-            ReviewMode.Recall -> meanings.joinToString(" · ") { it.meaning.trim() }
+            ReviewMode.Recall, ReviewMode.MeaningWriting -> meanings.joinToString(" · ") { it.meaning.trim() }
             ReviewMode.MultipleChoice -> selected.meaning.trim()
             ReviewMode.Writing,
-            ReviewMode.Listening -> current.word.trim()
+            ReviewMode.Listening, ReviewMode.Crossword -> current.word.trim()
         }
         val options = if (mode == ReviewMode.MultipleChoice) {
             val wrongAnswers = distractorsFor(current, words).shuffled(random).take(3)
@@ -77,8 +79,8 @@ fun buildReviewQuestions(
             wordId = current.id,
             prompt = when (mode) {
                 ReviewMode.Recall,
-                ReviewMode.MultipleChoice -> current.word.trim()
-                ReviewMode.Writing -> selected.meaning.trim()
+                ReviewMode.MultipleChoice, ReviewMode.MeaningWriting -> current.word.trim()
+                ReviewMode.Writing, ReviewMode.Crossword -> selected.meaning.trim()
                 ReviewMode.Listening -> "소리를 듣고 단어를 입력하세요"
             },
             answer = answer,
@@ -90,6 +92,7 @@ fun buildReviewQuestions(
                 ReviewMode.Writing -> current.example.toCloze(current.word)
                 ReviewMode.MultipleChoice -> current.example.ifBlank { current.note }.trim()
                 ReviewMode.Listening -> "재생 버튼을 여러 번 눌러도 괜찮아요"
+                ReviewMode.MeaningWriting, ReviewMode.Crossword -> ""
             },
             example = current.example.trim(),
             note = current.note.trim(),
@@ -115,7 +118,21 @@ private fun String.toCloze(word: String): String {
     return replace(Regex(Regex.escape(word), RegexOption.IGNORE_CASE), "_____")
 }
 
-fun gradeBatch(questions: List<ReviewQuestion>, inputs: Map<String, String>): Map<String, Boolean>? {
+fun gradeBatch(questions: List<ReviewQuestion>, inputs: Map<String, String>, mode: ReviewMode = ReviewMode.Writing): Map<String, Boolean>? {
     if (questions.isEmpty() || questions.any { inputs[it.wordId].isNullOrBlank() }) return null
-    return questions.associate { it.wordId to answersMatch(inputs.getValue(it.wordId), it.answer) }
+    return questions.associate { it.wordId to questionMatches(inputs.getValue(it.wordId), it, mode) }
+}
+
+fun normalizeMeaningAnswer(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFKC)
+    .filterNot { it.isWhitespace() }.lowercase(Locale.ROOT)
+fun meaningAnswersMatch(input: String, meanings: List<String>): Boolean {
+    val value = normalizeMeaningAnswer(input)
+    return value.isNotEmpty() && meanings.any { meaning ->
+        (listOf(meaning) + meaning.split(Regex("[,，;；/\\n]"))).any { normalizeMeaningAnswer(it) == value }
+    }
+}
+fun questionMatches(input: String, question: ReviewQuestion, mode: ReviewMode): Boolean = when (mode) {
+    ReviewMode.MeaningWriting -> meaningAnswersMatch(input, question.meanings.map { it.meaning })
+    ReviewMode.Crossword -> crosswordAnswer(input) == crosswordAnswer(question.answer)
+    else -> answersMatch(input, question.answer)
 }

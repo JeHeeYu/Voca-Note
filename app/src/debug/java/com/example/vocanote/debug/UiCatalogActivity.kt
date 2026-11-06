@@ -83,7 +83,7 @@ private fun Intent.requestedScreen(): String = getStringExtra(SCREEN_EXTRA).orEm
 private fun CatalogScreen(screen: String) {
     val destination = when (screen) {
         "library" -> BottomNavDestination.Library
-        "review", "worksheet", "worksheet-results" -> BottomNavDestination.Review
+        "review", "worksheet", "worksheet-results", "meaning-quiz", "crossword" -> BottomNavDestination.Review
         "settings" -> BottomNavDestination.Settings
         "editor", "new-editor" -> null
         else -> BottomNavDestination.Home
@@ -118,13 +118,18 @@ private fun CatalogScreen(screen: String) {
                     onOpenWord = {},
                     modifier = modifier
                 )
-                "review", "worksheet", "worksheet-results" -> ReviewScreen(
+                "review", "worksheet", "worksheet-results", "meaning-quiz", "crossword" -> ReviewScreen(
                     session = remember(screen) {
                         ReviewSessionViewModel().apply {
                             if (screen != "review") {
-                                start(sampleWords, ReviewMode.Writing, ReviewPresentation.Batch, ReviewScope.All, 10)
+                                start(sampleWords, when (screen) {
+                                    "meaning-quiz" -> ReviewMode.MeaningWriting
+                                    "crossword" -> ReviewMode.Crossword
+                                    else -> ReviewMode.Writing
+                                }, if (screen == "meaning-quiz") ReviewPresentation.Single else ReviewPresentation.Batch, ReviewScope.All, if (screen == "crossword") 5 else 10)
+                                if (screen == "crossword") state.crossword?.entries?.take(2)?.forEach { fillCrossword(it.wordId, it.answer) }
                                 state.questions.forEachIndexed { index, question ->
-                                    if (screen == "worksheet-results" || index < 3) input(question.wordId, if (index == 0) "recall" else question.answer)
+                                    if (screen == "worksheet-results" || screen == "worksheet" && index < 3) input(question.wordId, if (index == 0) "recall" else question.answer)
                                 }
                                 if (screen == "worksheet-results") {
                                     checkBatch()
@@ -143,7 +148,7 @@ private fun CatalogScreen(screen: String) {
                     user = sampleUser,
                     settings = sampleSettings,
                     isSaving = false,
-                    appVersion = "v1.1.0",
+                    appVersion = "v1.2.0",
                     onUpdateSettings = {},
                     onSignOut = {},
                     modifier = modifier

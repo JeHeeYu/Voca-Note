@@ -9,7 +9,7 @@ import kotlin.random.Random
 class ReviewSelectionTest {
     private val now = Instant.parse("2026-10-31T00:00:00Z")
     private val pool = (0..39).map { i -> SavedWord(
-        id = "$i", word = "word $i", meaning = "뜻 $i",
+        id = "$i", word = "word${'a' + i / 26}${'a' + i % 26}", meaning = "뜻 $i",
         correctCount = if (i < 20) 10 else 0,
         createdAt = if (i < 20) now.minusSeconds(900000) else now,
         nextReviewAt = if (i < 20) now.plusSeconds(900000) else null

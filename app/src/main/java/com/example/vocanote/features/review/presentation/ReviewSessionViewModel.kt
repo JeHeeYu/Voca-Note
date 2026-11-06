@@ -24,7 +24,10 @@ data class ReviewSessionState(
     val revealed: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
-    val saveError: String? = null
+    val saveError: String? = null,
+    val startError: String? = null,
+    val crossword: CrosswordPuzzle? = null,
+    val crosswordCells: Map<String, String> = emptyMap()
 ) {
     val current: ReviewQuestion? get() = questions.getOrNull(index)
     val checked: Boolean get() = answers.any { it.wordId == current?.wordId }
@@ -44,18 +47,32 @@ class ReviewSessionViewModel : ViewModel() {
                 ReviewScope.Mistakes -> it.needsMistakePractice()
             }
         }
-        val questions = buildReviewQuestions(words, mode, count, targets = targets, scope = scope)
+        val candidates = buildReviewQuestions(words, mode, if (mode == ReviewMode.Crossword) 30 else count, targets = targets, scope = scope)
+        val puzzle = if (mode == ReviewMode.Crossword) buildCrossword(candidates.map { it.wordId to it.answer }, count) else null
+        if (puzzle != null && puzzle.entries.isEmpty()) {
+            state = state.copy(startError = "서로 교차할 영어 단어가 부족해요. 공통 알파벳이 있는 단어를 추가하거나 다른 범위를 선택해 주세요.")
+            return
+        }
+        val questions = if (puzzle != null) candidates.filter { q -> puzzle.entries.any { it.wordId == q.wordId } } else candidates
         if (questions.isEmpty()) return
         state = ReviewSessionState(
             id = UUID.randomUUID().toString(), phase = ReviewPhase.Question, mode = mode,
-            presentation = if (mode == ReviewMode.Recall) ReviewPresentation.Single else presentation,
-            questions = questions, sourceWords = targets.associateBy { it.id }
+            presentation = if (mode == ReviewMode.Recall) ReviewPresentation.Single else if (mode == ReviewMode.Crossword) ReviewPresentation.Batch else presentation,
+            crossword = puzzle, questions = questions, sourceWords = targets.associateBy { it.id }
         )
     }
 
     fun input(wordId: String, value: String) {
         if (state.phase != ReviewPhase.Question || state.answers.any { it.wordId == wordId }) return
         state = state.copy(inputs = state.inputs + (wordId to value))
+    }
+
+    fun fillCrossword(wordId: String, value: String) {
+        if (state.phase != ReviewPhase.Question) return
+        val entry = state.crossword?.entries?.find { it.wordId == wordId } ?: return
+        val answer = crosswordAnswer(value)
+        if (answer.length != entry.answer.length) return
+        state = state.copy(crosswordCells = state.crosswordCells + entryCells(entry).mapIndexed { index, cell -> cell.first to answer[index].toString() })
     }
 
     fun reveal() { state = state.copy(revealed = true) }
@@ -65,7 +82,7 @@ class ReviewSessionViewModel : ViewModel() {
         if (state.phase != ReviewPhase.Question || state.checked) return
         val input = state.inputs[current.wordId].orEmpty()
         if (remembered == null && input.isBlank()) return
-        val correct = remembered ?: answersMatch(input, current.answer)
+        val correct = remembered ?: questionMatches(input, current, state.mode)
         val word = state.sourceWords.getValue(current.wordId)
         state = state.copy(answers = state.answers + word.toReviewAnswer(correct), revealed = true)
     }
@@ -78,7 +95,10 @@ class ReviewSessionViewModel : ViewModel() {
 
     fun checkBatch(): Boolean {
         if (state.phase != ReviewPhase.Question || state.presentation != ReviewPresentation.Batch) return false
-        val graded = gradeBatch(state.questions, state.inputs) ?: return false
+        val puzzle = state.crossword
+        if (puzzle != null && !crosswordComplete(puzzle, state.crosswordCells)) return false
+        val inputs = if (puzzle != null) crosswordInputs(puzzle, state.crosswordCells) else state.inputs
+        val graded = gradeBatch(state.questions, inputs, state.mode) ?: return false
         state = state.copy(
             phase = ReviewPhase.Graded,
             answers = graded.map { (id, correct) -> state.sourceWords.getValue(id).toReviewAnswer(correct) }
